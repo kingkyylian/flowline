@@ -1,0 +1,7 @@
+[actions.Run]
+command = "./script/build_and_run.sh"
+description = "Build and launch Flowline"
+
+[actions.Verify]
+command = "./script/build_and_run.sh --verify"
+description = "Build, launch, and verify the Flowline process"
