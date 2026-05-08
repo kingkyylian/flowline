@@ -103,3 +103,28 @@ import Testing
   #expect(MusicPlaybackValueParser.timeInterval("12,5") == 12.5)
   #expect(MusicPlaybackValueParser.timeInterval(" 165000 ") == 165000)
 }
+
+@Test func parsesSpotifyPlaybackSnapshotOutput() throws {
+  let output = "MR. MOONDIAL\nQuevedo\nBUENAS NOCHES\n165000\n12,5\nplaying"
+  let snapshot = try #require(MusicPlaybackSnapshotParser.parse(output, source: .spotify))
+
+  #expect(snapshot.source == "Spotify")
+  #expect(snapshot.title == "MR. MOONDIAL")
+  #expect(snapshot.artist == "Quevedo")
+  #expect(snapshot.album == "BUENAS NOCHES")
+  #expect(snapshot.isPlaying)
+  #expect(snapshot.elapsed == 12.5)
+  #expect(snapshot.duration == 165)
+}
+
+@Test func parsesAppleMusicPlaybackSnapshotOutput() throws {
+  let output = "Song\nArtist\nAlbum\n185\n42.25\npaused"
+  let snapshot = try #require(MusicPlaybackSnapshotParser.parse(output, source: .appleMusic))
+
+  #expect(snapshot.source == "Apple Music")
+  #expect(snapshot.title == "Song")
+  #expect(snapshot.artist == "Artist")
+  #expect(snapshot.duration == 185)
+  #expect(snapshot.elapsed == 42.25)
+  #expect(!snapshot.isPlaying)
+}
