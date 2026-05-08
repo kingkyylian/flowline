@@ -5,11 +5,9 @@ import FlowlineCore
 final class MusicControlService: ObservableObject {
   @Published private(set) var snapshot: MusicPlaybackSnapshot?
 
-  private let controllers: [any MusicPlayerControlling] = MusicPlaybackSource.allCases.map {
-    AppleScriptMusicPlayerController(source: $0)
-  }
+  private let worker = MusicPlaybackRefreshWorker()
   private var timer: Timer?
-  private var activePlayer: (any MusicPlayerControlling)?
+  private var refreshTask: Task<Void, Never>?
 
   func start() {
     refresh()
@@ -28,52 +26,65 @@ final class MusicControlService: ObservableObject {
   func stop() {
     timer?.invalidate()
     timer = nil
+    refreshTask?.cancel()
+    refreshTask = nil
   }
 
   isolated deinit {
     timer?.invalidate()
+    refreshTask?.cancel()
   }
 
   func previousTrack() {
-    if let activePlayer, activePlayer.run(command: .previousTrack) {
-      refresh()
-      return
-    }
-
-    postMediaKey(18)
+    run(command: .previousTrack, fallbackKeyCode: 18)
   }
 
   func togglePlayPause() {
-    if let activePlayer, activePlayer.run(command: .togglePlayPause) {
-      refresh()
-      return
-    }
-
-    postMediaKey(16)
+    run(command: .togglePlayPause, fallbackKeyCode: 16)
   }
 
   func nextTrack() {
-    if let activePlayer, activePlayer.run(command: .nextTrack) {
-      refresh()
-      return
-    }
-
-    postMediaKey(17)
+    run(command: .nextTrack, fallbackKeyCode: 17)
   }
 
   func refresh() {
-    for controller in controllers {
-      guard controller.isRunning() else {
-        continue
-      }
-
-      activePlayer = controller
-      snapshot = controller.playbackSnapshot()
+    guard refreshTask == nil else {
       return
     }
 
-    activePlayer = nil
-    snapshot = nil
+    let worker = worker
+    refreshTask = Task { @MainActor [weak self] in
+      let snapshot = await worker.refresh()
+      guard let self else {
+        return
+      }
+
+      defer {
+        self.refreshTask = nil
+      }
+
+      guard !Task.isCancelled else {
+        return
+      }
+
+      self.snapshot = snapshot
+    }
+  }
+
+  private func run(command: MusicPlayerCommand, fallbackKeyCode: Int) {
+    let worker = worker
+    Task { @MainActor [weak self] in
+      let didRun = await worker.run(command: command)
+      guard let self else {
+        return
+      }
+
+      if didRun {
+        self.refresh()
+      } else {
+        self.postMediaKey(fallbackKeyCode)
+      }
+    }
   }
 
   private func postMediaKey(_ keyCode: Int) {

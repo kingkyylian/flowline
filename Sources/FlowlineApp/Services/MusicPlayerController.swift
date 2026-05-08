@@ -1,7 +1,7 @@
 import AppKit
 import FlowlineCore
 
-protocol MusicPlayerControlling {
+protocol MusicPlayerControlling: Sendable {
   var source: MusicPlaybackSource { get }
 
   func isRunning() -> Bool
