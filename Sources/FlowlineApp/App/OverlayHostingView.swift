@@ -27,17 +27,14 @@ final class OverlayHostingView: NSHostingView<OverlayRootView> {
 
     let size = state.isExpanded
       ? NSSize(width: NotchMetrics.expandedWidth, height: NotchMetrics.expandedHeight)
-      : NSSize(
-        width: state.isHovering ? NotchMetrics.hoverWidth : state.physicalNotchWidth,
-        height: state.physicalNotchHeight
-      )
+      : NSSize(width: state.physicalNotchWidth, height: state.physicalNotchHeight)
 
     let hitFrame = NSRect(
       x: (bounds.width - size.width) / 2,
       y: bounds.height - size.height,
       width: size.width,
       height: size.height
-    ).insetBy(dx: -4, dy: -4)
+    ).insetBy(dx: state.isExpanded ? -4 : 0, dy: state.isExpanded ? -4 : 0)
 
     guard hitFrame.contains(point) else {
       return nil
