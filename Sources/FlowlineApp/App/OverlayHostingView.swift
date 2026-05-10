@@ -35,6 +35,7 @@ final class OverlayHostingView: NSHostingView<OverlayRootView> {
     notchTrackingArea = trackingArea
 
     super.updateTrackingAreas()
+    syncNotchHoverState()
   }
 
   override func mouseEntered(with event: NSEvent) {
@@ -85,5 +86,15 @@ final class OverlayHostingView: NSHostingView<OverlayRootView> {
       width: state.physicalNotchWidth,
       height: state.physicalNotchHeight
     )
+  }
+
+  private func syncNotchHoverState() {
+    guard state.positionMode == .notch, !state.isExpanded, let window else {
+      return
+    }
+
+    let pointInWindow = window.convertPoint(fromScreen: NSEvent.mouseLocation)
+    let pointInView = convert(pointInWindow, from: nil)
+    state.isHovering = collapsedNotchFrame.contains(pointInView)
   }
 }
