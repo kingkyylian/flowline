@@ -71,7 +71,7 @@ private struct NotchCockpitView: View {
         alignment: .top
       )
       .position(
-        x: centerColumnX + NotchMetrics.agentColumnWidth / 2,
+        x: centerColumnX + NotchMetrics.centerColumnShiftX + NotchMetrics.agentColumnWidth / 2,
         y: NotchMetrics.centerColumnDrop + (NotchMetrics.expandedContentHeight - NotchMetrics.centerColumnDrop) / 2
       )
 
