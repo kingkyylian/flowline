@@ -401,12 +401,7 @@ private struct NotchAgentColumn: View {
   }
 
   private var usageRows: [AIProviderUsage] {
-    guard let usage else {
-      return []
-    }
-
-    let orderedProviders: [AIProvider] = [.codex, .claude, .gemini]
-    return orderedProviders.compactMap { usage.provider($0) }
+    AIUsageDisplayRows.rows(for: usage)
   }
 
   private var agentDetail: String {

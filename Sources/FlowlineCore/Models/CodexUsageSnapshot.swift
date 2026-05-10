@@ -59,6 +59,62 @@ public struct AIUsageSnapshot: Equatable, Sendable {
   }
 }
 
+public enum AIUsageDisplayRows {
+  public static let defaultProviderOrder: [AIProvider] = [.codex, .claude, .gemini]
+
+  public static func rows(for snapshot: AIUsageSnapshot?) -> [AIProviderUsage] {
+    let indexedOrder = Dictionary(
+      uniqueKeysWithValues: defaultProviderOrder.enumerated().map { ($0.element, $0.offset) }
+    )
+    let rows = defaultProviderOrder.map { provider in
+      snapshot?.provider(provider) ?? placeholderUsage(for: provider)
+    }
+
+    return rows.sorted { lhs, rhs in
+      switch (constrainedPercentLeft(for: lhs), constrainedPercentLeft(for: rhs)) {
+      case let (lhsPercent?, rhsPercent?) where lhsPercent != rhsPercent:
+        return lhsPercent < rhsPercent
+      case (.some, nil):
+        return true
+      case (nil, .some):
+        return false
+      default:
+        return indexedOrder[lhs.provider, default: Int.max] < indexedOrder[rhs.provider, default: Int.max]
+      }
+    }
+  }
+
+  public static func rows(for snapshot: AIUsageSnapshot) -> [AIProviderUsage] {
+    rows(for: Optional(snapshot))
+  }
+
+  private static func constrainedPercentLeft(for usage: AIProviderUsage) -> Int? {
+    [usage.primary?.percentLeft, usage.secondary?.percentLeft].compactMap { $0 }.min()
+  }
+
+  private static func placeholderUsage(for provider: AIProvider) -> AIProviderUsage {
+    switch provider {
+    case .codex:
+      return AIProviderUsage(
+        provider: provider,
+        primary: AIUsageWindow(label: "Session", percentLeft: nil),
+        secondary: AIUsageWindow(label: "Weekly", percentLeft: nil)
+      )
+    case .claude:
+      return AIProviderUsage(
+        provider: provider,
+        primary: AIUsageWindow(label: "5h", percentLeft: nil),
+        secondary: AIUsageWindow(label: "7d", percentLeft: nil)
+      )
+    case .gemini:
+      return AIProviderUsage(
+        provider: provider,
+        primary: AIUsageWindow(label: "Daily", percentLeft: nil)
+      )
+    }
+  }
+}
+
 public struct CodexUsageSnapshot: Equatable, Sendable {
   public var sessionPercentLeft: Int?
   public var weeklyPercentLeft: Int?
