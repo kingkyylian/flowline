@@ -39,6 +39,7 @@ struct NotchMusicNowPlaying: View {
         togglePlayPause: togglePlayPause,
         next: next
       )
+      .frame(width: NotchMetrics.musicTimelineWidth, alignment: .center)
     }
   }
 }
