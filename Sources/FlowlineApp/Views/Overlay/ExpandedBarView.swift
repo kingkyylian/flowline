@@ -44,9 +44,17 @@ private struct NotchCockpitView: View {
   @ObservedObject var state: AppState
 
   var body: some View {
-    HStack(alignment: .top, spacing: 8) {
+    ZStack(alignment: .topLeading) {
       NotchWorkspaceColumn(snapshot: state.snapshot)
-        .frame(width: NotchMetrics.contextColumnWidth)
+        .frame(
+          width: NotchMetrics.contextColumnWidth,
+          height: NotchMetrics.expandedContentHeight,
+          alignment: .top
+        )
+        .position(
+          x: NotchMetrics.contextColumnWidth / 2,
+          y: NotchMetrics.expandedContentHeight / 2
+        )
 
       NotchAgentColumn(
         snapshot: state.snapshot,
@@ -62,7 +70,10 @@ private struct NotchCockpitView: View {
         height: NotchMetrics.expandedContentHeight - NotchMetrics.centerColumnDrop,
         alignment: .top
       )
-      .padding(.top, NotchMetrics.centerColumnDrop)
+      .position(
+        x: centerColumnX + NotchMetrics.agentColumnWidth / 2,
+        y: NotchMetrics.centerColumnDrop + (NotchMetrics.expandedContentHeight - NotchMetrics.centerColumnDrop) / 2
+      )
 
       NotchUtilityColumn(
         musicEnabled: state.musicModuleEnabled,
@@ -80,14 +91,24 @@ private struct NotchCockpitView: View {
         height: NotchMetrics.expandedContentHeight - NotchMetrics.utilityColumnDrop,
         alignment: .top
       )
-      .padding(.top, NotchMetrics.utilityColumnDrop)
-      .offset(x: NotchMetrics.utilityColumnShiftX)
+      .position(
+        x: utilityColumnX + NotchMetrics.utilityColumnWidth / 2,
+        y: NotchMetrics.utilityColumnDrop + (NotchMetrics.expandedContentHeight - NotchMetrics.utilityColumnDrop) / 2
+      )
     }
     .frame(width: NotchMetrics.expandedContentWidth, height: NotchMetrics.expandedContentHeight)
     .background {
       Rectangle()
         .fill(FlowlineDesign.notchModuleFill())
     }
+  }
+
+  private var centerColumnX: Double {
+    (NotchMetrics.expandedContentWidth - NotchMetrics.agentColumnWidth) / 2
+  }
+
+  private var utilityColumnX: Double {
+    NotchMetrics.expandedContentWidth - NotchMetrics.utilityColumnWidth
   }
 }
 

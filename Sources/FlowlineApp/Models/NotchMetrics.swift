@@ -13,7 +13,6 @@ enum NotchMetrics {
   static let expandedContentTopInset = 28.0
   static let expandedContentBottomInset = 10.0
   static let centerColumnDrop = 14.0
-  static let utilityColumnShiftX = 18.0
   static let utilityColumnDrop = 0.0
   static let contextColumnWidth = 148.0
   static let agentColumnWidth = 164.0
