@@ -9,6 +9,8 @@ final class OverlayController {
   private let panel: NSPanel
   private var screenObserver: NSObjectProtocol?
   private var mouseMonitor: Any?
+  private var collapsedHoverGlobalMonitor: Any?
+  private var collapsedHoverLocalMonitor: Any?
   private var cancellables: Set<AnyCancellable> = []
 
   init(state: AppState) {
@@ -38,9 +40,10 @@ final class OverlayController {
       state.$isExpanded.removeDuplicates(),
       state.$positionMode.removeDuplicates()
     )
-    .sink { [weak self] isExpanded, _ in
+    .sink { [weak self] isExpanded, positionMode in
       self?.positionPanel()
       self?.updateMouseMonitor(isExpanded: isExpanded)
+      self?.updateCollapsedHoverMonitor(isExpanded: isExpanded, positionMode: positionMode)
     }
     .store(in: &cancellables)
 
@@ -69,6 +72,12 @@ final class OverlayController {
 
     if let mouseMonitor {
       NSEvent.removeMonitor(mouseMonitor)
+    }
+    if let collapsedHoverGlobalMonitor {
+      NSEvent.removeMonitor(collapsedHoverGlobalMonitor)
+    }
+    if let collapsedHoverLocalMonitor {
+      NSEvent.removeMonitor(collapsedHoverLocalMonitor)
     }
   }
 
@@ -130,6 +139,65 @@ final class OverlayController {
       frame(for: windowSize(positionMode: positionMode), positionMode: positionMode),
       display: true
     )
+    updateCollapsedHoverState()
+  }
+
+  private func updateCollapsedHoverMonitor(isExpanded: Bool, positionMode: PositionMode) {
+    guard positionMode == .notch, !isExpanded else {
+      stopCollapsedHoverMonitor()
+      if positionMode == .notch {
+        state.isHovering = false
+      }
+      return
+    }
+
+    if collapsedHoverGlobalMonitor == nil {
+      collapsedHoverGlobalMonitor = NSEvent.addGlobalMonitorForEvents(
+        matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
+      ) { [weak self] _ in
+        Task { @MainActor in
+          self?.updateCollapsedHoverState()
+        }
+      }
+    }
+
+    if collapsedHoverLocalMonitor == nil {
+      collapsedHoverLocalMonitor = NSEvent.addLocalMonitorForEvents(
+        matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
+      ) { [weak self] event in
+        Task { @MainActor in
+          self?.updateCollapsedHoverState()
+        }
+        return event
+      }
+    }
+
+    updateCollapsedHoverState()
+  }
+
+  private func stopCollapsedHoverMonitor() {
+    if let collapsedHoverGlobalMonitor {
+      NSEvent.removeMonitor(collapsedHoverGlobalMonitor)
+      self.collapsedHoverGlobalMonitor = nil
+    }
+
+    if let collapsedHoverLocalMonitor {
+      NSEvent.removeMonitor(collapsedHoverLocalMonitor)
+      self.collapsedHoverLocalMonitor = nil
+    }
+  }
+
+  private func updateCollapsedHoverState() {
+    guard state.positionMode == .notch, !state.isExpanded else {
+      return
+    }
+
+    let isHovering = collapsedNotchScreenFrame.contains(NSEvent.mouseLocation)
+    guard state.isHovering != isHovering else {
+      return
+    }
+
+    state.isHovering = isHovering
   }
 
   private func windowSize(positionMode: PositionMode) -> NSSize {
@@ -180,6 +248,15 @@ final class OverlayController {
 
   private var targetScreen: NSScreen? {
     return NSScreen.main ?? NSScreen.screens.first
+  }
+
+  private var collapsedNotchScreenFrame: NSRect {
+    NSRect(
+      x: panel.frame.midX - state.physicalNotchWidth / 2,
+      y: panel.frame.maxY - state.physicalNotchHeight,
+      width: state.physicalNotchWidth,
+      height: state.physicalNotchHeight
+    )
   }
 
   private func displayPositionMode(for screen: NSScreen?) -> PositionMode {
