@@ -77,6 +77,27 @@ public struct MusicPlaybackSnapshot: Equatable, Sendable {
     return "\(Self.format(seconds: elapsed(at: date))) / \(Self.format(seconds: duration))"
   }
 
+  public func elapsedText(at date: Date) -> String {
+    let liveElapsed = elapsed(at: date)
+    return liveElapsed > 0 ? Self.format(seconds: liveElapsed) : "0:00"
+  }
+
+  public var durationText: String {
+    duration > 0 ? Self.format(seconds: duration) : "--:--"
+  }
+
+  public func withPlaybackState(_ isPlaying: Bool, at date: Date) -> Self {
+    var copy = self
+    copy.elapsed = elapsed(at: date)
+    copy.isPlaying = isPlaying
+    copy.capturedAt = date
+    return copy
+  }
+
+  public func toggledPlayback(at date: Date) -> Self {
+    withPlaybackState(!isPlaying, at: date)
+  }
+
   private static func format(seconds: TimeInterval) -> String {
     let totalSeconds = Int(max(0, seconds).rounded(.down))
     let hours = totalSeconds / 3600

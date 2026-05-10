@@ -44,8 +44,8 @@ private struct NotchCockpitView: View {
   @ObservedObject var state: AppState
 
   var body: some View {
-    HStack(spacing: 8) {
-      NotchContextColumn(snapshot: state.snapshot)
+    HStack(alignment: .top, spacing: 8) {
+      NotchWorkspaceColumn(snapshot: state.snapshot)
         .frame(width: NotchMetrics.contextColumnWidth)
 
       NotchAgentColumn(
@@ -58,6 +58,7 @@ private struct NotchCockpitView: View {
         copyContext: state.copyContextSummary
       )
       .frame(width: NotchMetrics.agentColumnWidth)
+      .offset(y: NotchMetrics.centerColumnDrop)
 
       NotchUtilityColumn(
         musicEnabled: state.musicModuleEnabled,
@@ -71,55 +72,96 @@ private struct NotchCockpitView: View {
         next: state.musicNextTrack
       )
       .frame(width: NotchMetrics.utilityColumnWidth)
+      .offset(x: NotchMetrics.utilityColumnShiftX, y: NotchMetrics.utilityColumnDrop)
     }
     .frame(width: NotchMetrics.expandedContentWidth, height: NotchMetrics.expandedContentHeight)
     .background {
       Rectangle()
         .fill(FlowlineDesign.notchModuleFill())
     }
-    .overlay {
-      Rectangle()
-        .stroke(Color.white.opacity(0.055), lineWidth: 1)
-    }
   }
 }
 
-private struct NotchContextColumn: View {
+private struct NotchWorkspaceColumn: View {
   let snapshot: ContextSnapshot
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 7) {
-      PanelHeader(title: "CONTEXT", systemImage: "scope", positionMode: .notch)
+    VStack(alignment: .leading, spacing: 6) {
+      PanelHeader(title: "WORKSPACE", systemImage: "folder", positionMode: .notch)
 
-      Text(snapshot.activeApp.name)
+      Text(title)
         .font(FlowlineDesign.Typography.notchTitle)
         .foregroundStyle(FlowlineDesign.foreground(for: .notch))
         .lineLimit(1)
+        .minimumScaleFactor(0.78)
+        .help(title)
 
-      Text(snapshot.primaryTitle)
+      Text(detail)
         .font(FlowlineDesign.Typography.subtitle)
         .foregroundStyle(FlowlineDesign.secondary(for: .notch))
         .lineLimit(1)
+        .minimumScaleFactor(0.78)
+        .help(detail)
 
       Spacer(minLength: 0)
 
       HStack(spacing: 8) {
         NotchSignal(color: statusColor, label: statusLabel)
 
-        if let git = snapshot.git {
-          Text(git.branch)
+        if !footerDetail.isEmpty {
+          Text(footerDetail)
             .font(FlowlineDesign.Typography.metadata)
             .foregroundStyle(FlowlineDesign.tertiary(for: .notch))
             .lineLimit(1)
-        } else {
-          Text(snapshot.activeApp.isDeveloperApp ? "repo pending" : "local")
-            .font(FlowlineDesign.Typography.metadata)
-            .foregroundStyle(FlowlineDesign.tertiary(for: .notch))
-            .lineLimit(1)
+            .minimumScaleFactor(0.82)
         }
       }
     }
     .padding(FlowlineDesign.Metrics.notchColumnPadding)
+  }
+
+  private var title: String {
+    if let repositoryName = snapshot.git?.repositoryName, !repositoryName.isEmpty {
+      return repositoryName
+    }
+
+    if snapshot.primaryTitle != snapshot.activeApp.name {
+      return snapshot.primaryTitle
+    }
+
+    if let event = snapshot.nextEvent {
+      return event.title
+    }
+
+    return snapshot.activeApp.name
+  }
+
+  private var detail: String {
+    if let git = snapshot.git {
+      return "\(snapshot.activeApp.name) · \(git.branch)"
+    }
+
+    if let event = snapshot.nextEvent {
+      return "Next \(event.startDate.formatted(date: .omitted, time: .shortened))"
+    }
+
+    if snapshot.primaryTitle != snapshot.activeApp.name {
+      return snapshot.activeApp.name
+    }
+
+    return snapshot.activeApp.isDeveloperApp ? "repo pending" : "local workspace"
+  }
+
+  private var footerDetail: String {
+    if !snapshot.statusItems.isEmpty {
+      return ""
+    }
+
+    if snapshot.git != nil {
+      return "repo"
+    }
+
+    return "local"
   }
 
   private var statusColor: Color {
@@ -159,6 +201,7 @@ private struct NotchAgentColumn: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       PanelHeader(title: "LIMITS", systemImage: "gauge.with.dots.needle.33percent", positionMode: .notch)
+        .padding(.bottom, 2)
 
       if usageRows.isEmpty {
         Text(agentDetail)
@@ -250,12 +293,13 @@ private struct NotchUsageRow: View {
   let usage: AIProviderUsage
 
   var body: some View {
-    HStack(spacing: 7) {
+    HStack(spacing: 4) {
       Text(usage.provider.displayName)
         .font(FlowlineDesign.Typography.metadata)
         .foregroundStyle(FlowlineDesign.secondary(for: .notch))
-        .frame(width: 44, alignment: .leading)
+        .frame(width: 42, alignment: .leading)
         .lineLimit(1)
+        .minimumScaleFactor(0.82)
 
       if let primary = usage.primary {
         NotchUsageChip(window: primary, color: primaryColor)
@@ -295,24 +339,18 @@ private struct NotchUsageChip: View {
       Text(shortLabel)
         .font(.system(size: 8, weight: .semibold, design: .monospaced))
         .foregroundStyle(FlowlineDesign.tertiary(for: .notch))
-        .frame(width: 14, alignment: .leading)
+        .frame(width: 10, alignment: .leading)
         .lineLimit(1)
 
       Text(percentText)
         .font(.system(size: 9, weight: .semibold, design: .monospaced))
         .foregroundStyle(color)
         .monospacedDigit()
-        .frame(width: 34, alignment: .trailing)
+        .frame(width: 30, alignment: .trailing)
         .lineLimit(1)
         .minimumScaleFactor(0.82)
     }
-    .padding(.horizontal, 6)
-    .frame(width: 66, height: 16)
-    .background(Color.white.opacity(0.035))
-    .overlay {
-      Rectangle()
-        .stroke(Color.white.opacity(0.045), lineWidth: 1)
-    }
+    .frame(width: 44, height: 16)
     .help("\(window.label) \(percentText)")
     .accessibilityLabel("\(window.label) \(percentText)")
   }

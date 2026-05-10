@@ -40,13 +40,15 @@ import Testing
 }
 
 @Test func formatsMusicPlaybackTime() throws {
+  let capturedAt = Date(timeIntervalSinceReferenceDate: 100)
   let shortTrack = MusicPlaybackSnapshot(
     source: "Spotify",
     title: "Track",
     artist: "Artist",
     isPlaying: true,
     elapsed: 65.9,
-    duration: 185
+    duration: 185,
+    capturedAt: capturedAt
   )
 
   let longTrack = MusicPlaybackSnapshot(
@@ -58,7 +60,9 @@ import Testing
     duration: 3910
   )
 
-  #expect(shortTrack.timeText == "1:05 / 3:05")
+  #expect(shortTrack.timeText(at: capturedAt) == "1:05 / 3:05")
+  #expect(shortTrack.elapsedText(at: capturedAt) == "1:05")
+  #expect(shortTrack.durationText == "3:05")
   #expect(longTrack.timeText == "1:01:11 / 1:05:10")
 }
 
@@ -96,6 +100,28 @@ import Testing
 
   #expect(snapshot.elapsed(at: fiveSecondsLater) == 10)
   #expect(snapshot.timeText(at: fiveSecondsLater) == "0:10 / 3:05")
+}
+
+@Test func togglesMusicPlaybackStateAtCurrentLiveTime() throws {
+  let capturedAt = Date(timeIntervalSinceReferenceDate: 100)
+  let toggleDate = capturedAt.addingTimeInterval(5)
+  let playing = MusicPlaybackSnapshot(
+    source: "Spotify",
+    title: "Track",
+    artist: "Artist",
+    isPlaying: true,
+    elapsed: 10,
+    duration: 185,
+    capturedAt: capturedAt
+  )
+
+  let paused = playing.toggledPlayback(at: toggleDate)
+
+  #expect(!paused.isPlaying)
+  #expect(paused.elapsed == 15)
+  #expect(paused.capturedAt == toggleDate)
+  #expect(paused.elapsed(at: toggleDate.addingTimeInterval(10)) == 15)
+  #expect(paused.toggledPlayback(at: toggleDate).isPlaying)
 }
 
 @Test func parsesLocalizedMusicPlaybackNumbers() throws {

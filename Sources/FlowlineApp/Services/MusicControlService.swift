@@ -1,5 +1,6 @@
-import AppKit
+import Combine
 import FlowlineCore
+import Foundation
 
 @MainActor
 final class MusicControlService: ObservableObject {
@@ -8,6 +9,7 @@ final class MusicControlService: ObservableObject {
   private let worker = MusicPlaybackRefreshWorker()
   private var timer: Timer?
   private var refreshTask: Task<Void, Never>?
+  private var commandRefreshTask: Task<Void, Never>?
 
   func start() {
     refresh()
@@ -28,23 +30,34 @@ final class MusicControlService: ObservableObject {
     timer = nil
     refreshTask?.cancel()
     refreshTask = nil
+    commandRefreshTask?.cancel()
+    commandRefreshTask = nil
   }
 
   isolated deinit {
     timer?.invalidate()
     refreshTask?.cancel()
+    commandRefreshTask?.cancel()
   }
 
   func previousTrack() {
-    run(command: .previousTrack, fallbackKeyCode: 18)
+    run(command: .previousTrack)
   }
 
   func togglePlayPause() {
-    run(command: .togglePlayPause, fallbackKeyCode: 16)
+    let command: MusicPlayerCommand
+    if let snapshot {
+      command = snapshot.isPlaying ? .pause : .play
+    } else {
+      command = .togglePlayPause
+    }
+
+    snapshot = snapshot?.toggledPlayback(at: Date())
+    run(command: command)
   }
 
   func nextTrack() {
-    run(command: .nextTrack, fallbackKeyCode: 17)
+    run(command: .nextTrack)
   }
 
   func refresh() {
@@ -71,48 +84,28 @@ final class MusicControlService: ObservableObject {
     }
   }
 
-  private func run(command: MusicPlayerCommand, fallbackKeyCode: Int) {
+  private func run(command: MusicPlayerCommand) {
     let worker = worker
     Task { @MainActor [weak self] in
-      let didRun = await worker.run(command: command)
+      _ = await worker.run(command: command)
       guard let self else {
         return
       }
 
-      if didRun {
-        self.refresh()
-      } else {
-        self.postMediaKey(fallbackKeyCode)
+      self.scheduleRefreshAfterCommand()
+    }
+  }
+
+  private func scheduleRefreshAfterCommand() {
+    commandRefreshTask?.cancel()
+    commandRefreshTask = Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .milliseconds(350))
+      guard !Task.isCancelled, let self else {
+        return
       }
+
+      self.refresh()
+      self.commandRefreshTask = nil
     }
-  }
-
-  private func postMediaKey(_ keyCode: Int) {
-    postMediaKey(keyCode, isDown: true)
-    postMediaKey(keyCode, isDown: false)
-  }
-
-  private func postMediaKey(_ keyCode: Int, isDown: Bool) {
-    let keyState = isDown ? 0xA00 : 0xB00
-    let data1 = (keyCode << 16) | keyState
-
-    guard
-      let event = NSEvent.otherEvent(
-        with: .systemDefined,
-        location: .zero,
-        modifierFlags: NSEvent.ModifierFlags(rawValue: UInt(keyState)),
-        timestamp: 0,
-        windowNumber: 0,
-        context: nil,
-        subtype: 8,
-        data1: data1,
-        data2: -1
-      ),
-      let cgEvent = event.cgEvent
-    else {
-      return
-    }
-
-    cgEvent.post(tap: .cghidEventTap)
   }
 }

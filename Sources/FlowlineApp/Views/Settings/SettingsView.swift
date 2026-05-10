@@ -9,10 +9,6 @@ struct SettingsView: View {
     HStack(spacing: 0) {
       SettingsSidebar(selection: $selectedCategory)
 
-      Rectangle()
-        .fill(SettingsTheme.line)
-        .frame(width: 1)
-
       ScrollView {
         VStack(alignment: .leading, spacing: 18) {
           Text(selectedCategory.title)
@@ -172,8 +168,6 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 private enum SettingsTheme {
   static let background = Color(red: 0.025, green: 0.025, blue: 0.026)
   static let sidebar = Color.black.opacity(0.28)
-  static let surface = Color.white.opacity(0.035)
-  static let selectedSurface = Color.white.opacity(0.075)
   static let line = Color.white.opacity(0.11)
   static let primaryText = Color.white.opacity(0.94)
   static let secondaryText = Color.white.opacity(0.58)
@@ -222,7 +216,7 @@ private struct SettingsSidebar: View {
             .foregroundStyle(selection == category ? SettingsTheme.primaryText : SettingsTheme.secondaryText)
             .padding(.horizontal, 12)
             .frame(height: 34)
-            .background(selection == category ? SettingsTheme.selectedSurface : Color.clear)
+            .contentShape(Rectangle())
             .overlay(alignment: .leading) {
               Rectangle()
                 .fill(selection == category ? SettingsTheme.accent : Color.clear)
@@ -254,12 +248,7 @@ private struct SettingsBlock<Content: View>: View {
       VStack(spacing: 0) {
         content
       }
-      .background(SettingsTheme.surface)
-      .overlay {
-        RoundedRectangle(cornerRadius: 4, style: .continuous)
-          .stroke(SettingsTheme.line, lineWidth: 1)
-      }
-      .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
 }
@@ -287,12 +276,7 @@ private struct PermissionHealthHeader: View {
       Spacer()
     }
     .padding(14)
-    .background(SettingsTheme.surface)
-    .overlay {
-      RoundedRectangle(cornerRadius: 4, style: .continuous)
-        .stroke(SettingsTheme.line, lineWidth: 1)
-    }
-    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 
@@ -318,9 +302,7 @@ private struct SettingsRow<Content: View>: View {
 
 private struct SettingsDivider: View {
   var body: some View {
-    Rectangle()
-      .fill(SettingsTheme.line)
-      .frame(height: 1)
+    EmptyView()
   }
 }
 

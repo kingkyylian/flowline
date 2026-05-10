@@ -51,10 +51,10 @@ enum FlowlineDesign {
   }
 
   static func iconButtonBackground(for mode: PositionMode) -> Color {
-    mode == .notch ? Color.white.opacity(0.045) : Color.primary.opacity(0.055)
+    mode == .notch ? Color.clear : Color.primary.opacity(0.055)
   }
 
   static func notchModuleFill() -> Color {
-    Color.black.opacity(0.92)
+    Color.black
   }
 }

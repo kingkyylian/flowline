@@ -11,6 +11,8 @@ protocol MusicPlayerControlling: Sendable {
 
 enum MusicPlayerCommand {
   case previousTrack
+  case play
+  case pause
   case togglePlayPause
   case nextTrack
 
@@ -18,6 +20,10 @@ enum MusicPlayerCommand {
     switch self {
     case .previousTrack:
       return "previous track"
+    case .play:
+      return "play"
+    case .pause:
+      return "pause"
     case .togglePlayPause:
       return "playpause"
     case .nextTrack:
@@ -77,20 +83,11 @@ struct AppleScriptMusicPlayerController: MusicPlayerControlling {
   }
 
   func run(command: MusicPlayerCommand) -> Bool {
-    runScript("""
+    executeScript("""
     tell application "\(source.appleScriptApplicationName)"
       if it is running then \(command.appleScriptCommand)
     end tell
-    """) != nil
-  }
-
-  private func runScript(_ source: String) -> String? {
-    let result = executeScript(source)
-    guard result.error == nil else {
-      return nil
-    }
-
-    return result.output
+    """).error == nil
   }
 
   private func executeScript(_ source: String) -> (output: String?, error: NSDictionary?) {

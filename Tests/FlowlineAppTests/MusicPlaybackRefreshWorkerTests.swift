@@ -36,6 +36,22 @@ import Testing
   #expect(await worker.run(command: .nextTrack) == false)
 }
 
+@Test func refreshWorkerRunsCommandOnFirstRunningControllerWhenNoSnapshotExists() async {
+  let stopped = FakeMusicPlayerController(source: .spotify, isRunningValue: false, snapshot: nil)
+  let running = FakeMusicPlayerController(source: .appleMusic, isRunningValue: true, snapshot: nil, commandResult: true)
+  let worker = MusicPlaybackRefreshWorker(controllers: [stopped, running])
+
+  #expect(await worker.run(command: .togglePlayPause))
+}
+
+@Test func mapsMusicPlayerCommandsToAppleScriptCommands() {
+  #expect(MusicPlayerCommand.previousTrack.appleScriptCommand == "previous track")
+  #expect(MusicPlayerCommand.play.appleScriptCommand == "play")
+  #expect(MusicPlayerCommand.pause.appleScriptCommand == "pause")
+  #expect(MusicPlayerCommand.togglePlayPause.appleScriptCommand == "playpause")
+  #expect(MusicPlayerCommand.nextTrack.appleScriptCommand == "next track")
+}
+
 private struct FakeMusicPlayerController: MusicPlayerControlling {
   let source: MusicPlaybackSource
   let isRunningValue: Bool

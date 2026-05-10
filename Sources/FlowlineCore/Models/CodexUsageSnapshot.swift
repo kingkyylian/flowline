@@ -97,6 +97,27 @@ public enum CodexUsageParser {
     )
   }
 
+  public static func parseSessionEventProvider(_ data: Data) throws -> AIProviderUsage? {
+    let event = try JSONDecoder().decode(SessionEvent.self, from: data)
+    guard let rateLimits = event.payload.rateLimits, rateLimits.limitID == "codex" else {
+      return nil
+    }
+
+    return AIProviderUsage(
+      provider: .codex,
+      primary: AIUsageWindow(
+        label: "Session",
+        percentLeft: percentLeft(from: rateLimits.primary?.usedPercent),
+        resetsAt: date(fromUnixTimestamp: rateLimits.primary?.resetsAt)
+      ),
+      secondary: AIUsageWindow(
+        label: "Weekly",
+        percentLeft: percentLeft(from: rateLimits.secondary?.usedPercent),
+        resetsAt: date(fromUnixTimestamp: rateLimits.secondary?.resetsAt)
+      )
+    )
+  }
+
   private static func percentLeft(from usedPercent: Double?) -> Int? {
     guard let usedPercent else {
       return nil
@@ -138,6 +159,40 @@ public enum CodexUsageParser {
     enum CodingKeys: String, CodingKey {
       case usedPercent = "used_percent"
       case resetAt = "reset_at"
+    }
+  }
+
+  private struct SessionEvent: Decodable {
+    var payload: SessionPayload
+  }
+
+  private struct SessionPayload: Decodable {
+    var rateLimits: SessionRateLimits?
+
+    enum CodingKeys: String, CodingKey {
+      case rateLimits = "rate_limits"
+    }
+  }
+
+  private struct SessionRateLimits: Decodable {
+    var limitID: String?
+    var primary: SessionWindow?
+    var secondary: SessionWindow?
+
+    enum CodingKeys: String, CodingKey {
+      case limitID = "limit_id"
+      case primary
+      case secondary
+    }
+  }
+
+  private struct SessionWindow: Decodable {
+    var usedPercent: Double?
+    var resetsAt: Double?
+
+    enum CodingKeys: String, CodingKey {
+      case usedPercent = "used_percent"
+      case resetsAt = "resets_at"
     }
   }
 }

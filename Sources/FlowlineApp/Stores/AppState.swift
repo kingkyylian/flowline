@@ -30,12 +30,23 @@ final class AppState: ObservableObject {
   @Published var calendarModuleEnabled = AppState.defaultBool(forKey: UserDefaultsKey.calendarModuleEnabled, fallback: FlowlineModulePreferences.defaults.calendar) {
     didSet {
       UserDefaults.standard.set(calendarModuleEnabled, forKey: UserDefaultsKey.calendarModuleEnabled)
+      if calendarModuleEnabled {
+        calendarService.start()
+      } else {
+        calendarService.stop()
+      }
       refreshSnapshot()
     }
   }
   @Published var shelfModuleEnabled = AppState.defaultBool(forKey: UserDefaultsKey.shelfModuleEnabled, fallback: FlowlineModulePreferences.defaults.shelf) {
     didSet {
       UserDefaults.standard.set(shelfModuleEnabled, forKey: UserDefaultsKey.shelfModuleEnabled)
+      if shelfModuleEnabled {
+        shelfService.start()
+      } else {
+        shelfService.stop()
+        shelfService.clear()
+      }
       refreshSnapshot()
     }
   }
@@ -48,7 +59,11 @@ final class AppState: ObservableObject {
       LaunchAtLoginService.setEnabled(launchAtLogin)
     }
   }
-  @Published var showOverFullscreen = false
+  @Published var showOverFullscreen = AppState.defaultBool(forKey: UserDefaultsKey.showOverFullscreen, fallback: false) {
+    didSet {
+      UserDefaults.standard.set(showOverFullscreen, forKey: UserDefaultsKey.showOverFullscreen)
+    }
+  }
 
   private let activeAppMonitor = ActiveAppMonitor()
   private let gitService = GitContextService()
@@ -72,11 +87,15 @@ final class AppState: ObservableObject {
   func start() {
     bindServices()
     activeAppMonitor.start()
-    calendarService.start()
-    shelfService.start()
     aiUsageService.start()
     if musicModuleEnabled {
       musicService.start()
+    }
+    if calendarModuleEnabled {
+      calendarService.start()
+    }
+    if shelfModuleEnabled {
+      shelfService.start()
     }
     agentProviders = agentProviderService.enabledProviders()
     refreshSnapshot()
@@ -262,4 +281,5 @@ private enum UserDefaultsKey {
   static let musicModuleEnabled = "module.music.enabled"
   static let calendarModuleEnabled = "module.calendar.enabled"
   static let shelfModuleEnabled = "module.shelf.enabled"
+  static let showOverFullscreen = "behavior.showOverFullscreen"
 }

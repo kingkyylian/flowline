@@ -8,51 +8,37 @@ struct NotchMusicNowPlaying: View {
   let next: () -> Void
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 5) {
-      HStack(spacing: 7) {
-        MusicArtworkMark(playback: playback, size: 24)
+    VStack(alignment: .leading, spacing: 7) {
+      HStack(alignment: .center, spacing: 8) {
+        MusicArtworkMark(playback: playback, size: 26)
 
         VStack(alignment: .leading, spacing: 2) {
           Text(playback?.displayTitle ?? "No track playing")
-            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            .font(.system(size: 12, weight: .bold, design: .monospaced))
             .foregroundStyle(FlowlineDesign.foreground(for: .notch))
             .lineLimit(1)
             .minimumScaleFactor(0.78)
+            .help(playback?.displayTitle ?? "No track playing")
 
           Text(playback?.displayArtist ?? "Spotify / Music")
             .font(.system(size: 9, weight: .medium, design: .monospaced))
             .foregroundStyle(FlowlineDesign.secondary(for: .notch))
             .lineLimit(1)
             .minimumScaleFactor(0.78)
+            .help(playback?.displayArtist ?? "Spotify / Music")
         }
       }
 
       MusicTimelineRow(playback: playback, positionMode: .notch)
+        .frame(width: NotchMetrics.musicTimelineWidth, alignment: .leading)
 
-      HStack(spacing: 7) {
-        FlowlineIconButton(
-          title: "Previous track",
-          systemImage: "backward.end.fill",
-          positionMode: .notch,
-          action: previous
-        )
-
-        FlowlineIconButton(
-          title: "Play or pause",
-          systemImage: playback?.isPlaying == true ? "pause.fill" : "play.fill",
-          positionMode: .notch,
-          action: togglePlayPause
-        )
-
-        FlowlineIconButton(
-          title: "Next track",
-          systemImage: "forward.end.fill",
-          positionMode: .notch,
-          action: next
-        )
-
-        Spacer(minLength: 0)
-      }
+      MusicTransportControls(
+        playback: playback,
+        positionMode: .notch,
+        previous: previous,
+        togglePlayPause: togglePlayPause,
+        next: next
+      )
     }
   }
 }
@@ -93,28 +79,13 @@ struct MusicPanel: View {
 
       Spacer()
 
-      HStack(spacing: 6) {
-        FlowlineIconButton(
-          title: "Previous track",
-          systemImage: "backward.end.fill",
-          positionMode: positionMode,
-          action: previous
-        )
-
-        FlowlineIconButton(
-          title: "Play or pause",
-          systemImage: playback?.isPlaying == true ? "pause.fill" : "play.fill",
-          positionMode: positionMode,
-          action: togglePlayPause
-        )
-
-        FlowlineIconButton(
-          title: "Next track",
-          systemImage: "forward.end.fill",
-          positionMode: positionMode,
-          action: next
-        )
-      }
+      MusicTransportControls(
+        playback: playback,
+        positionMode: positionMode,
+        previous: previous,
+        togglePlayPause: togglePlayPause,
+        next: next
+      )
     }
     .padding(FlowlineDesign.Metrics.panelPadding)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -129,7 +100,7 @@ private struct MusicArtworkMark: View {
   var body: some View {
     ZStack {
       RoundedRectangle(cornerRadius: 4, style: .continuous)
-        .fill(background)
+        .fill(Color.black)
 
       VStack(spacing: 3) {
         ForEach(0..<4, id: \.self) { index in
@@ -144,24 +115,7 @@ private struct MusicArtworkMark: View {
         .foregroundStyle(Color.white.opacity(0.88))
     }
     .frame(width: size, height: size)
-    .overlay {
-      RoundedRectangle(cornerRadius: 4, style: .continuous)
-        .stroke(Color.white.opacity(0.10), lineWidth: 1)
-    }
     .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-  }
-
-  private var background: LinearGradient {
-    let isPlaying = playback?.isPlaying == true
-    return LinearGradient(
-      colors: [
-        Color.white.opacity(isPlaying ? 0.22 : 0.12),
-        Color.white.opacity(isPlaying ? 0.08 : 0.04),
-        Color.black.opacity(0.35)
-      ],
-      startPoint: .topLeading,
-      endPoint: .bottomTrailing
-    )
   }
 
   private func opacity(for index: Int) -> Double {
@@ -176,6 +130,7 @@ private struct MusicArtworkMark: View {
 private struct MusicProgressBar: View {
   let progress: Double
   let positionMode: PositionMode
+  var height: CGFloat = 3
 
   var body: some View {
     GeometryReader { proxy in
@@ -188,7 +143,7 @@ private struct MusicProgressBar: View {
           .frame(width: max(2, proxy.size.width * progress))
       }
     }
-    .frame(height: 3)
+    .frame(height: height)
     .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
   }
 }
@@ -199,18 +154,105 @@ private struct MusicTimelineRow: View {
 
   var body: some View {
     TimelineView(.periodic(from: Date(), by: 1)) { context in
-      HStack(spacing: 7) {
-        MusicProgressBar(progress: playback?.progress(at: context.date) ?? 0, positionMode: positionMode)
+      VStack(spacing: 3) {
+        MusicProgressBar(
+          progress: playback?.progress(at: context.date) ?? 0,
+          positionMode: positionMode,
+          height: positionMode == .notch ? 4 : 3
+        )
 
-        Text(playback?.timeText(at: context.date) ?? "--:--")
-          .font(.system(size: positionMode == .notch ? 9 : 10, weight: .medium, design: .monospaced))
-          .foregroundStyle(FlowlineDesign.secondary(for: positionMode))
-          .monospacedDigit()
-          .lineLimit(1)
-          .minimumScaleFactor(0.75)
-          .frame(width: positionMode == .notch ? 66 : 76, alignment: .trailing)
+        HStack(spacing: 8) {
+          Text(playback?.elapsedText(at: context.date) ?? "0:00")
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+          Text(playback?.durationText ?? "--:--")
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .font(.system(size: positionMode == .notch ? 9 : 10, weight: .medium, design: .monospaced))
+        .foregroundStyle(FlowlineDesign.secondary(for: positionMode))
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.75)
       }
     }
-    .frame(height: 10)
+    .frame(height: positionMode == .notch ? 18 : 16)
+  }
+}
+
+private struct MusicTransportControls: View {
+  let playback: MusicPlaybackSnapshot?
+  let positionMode: PositionMode
+  let previous: () -> Void
+  let togglePlayPause: () -> Void
+  let next: () -> Void
+
+  var body: some View {
+    HStack(spacing: positionMode == .notch ? 24 : 10) {
+      MusicTransportButton(
+        title: "Previous track",
+        systemImage: "backward.end.fill",
+        positionMode: positionMode,
+        action: previous
+      )
+
+      MusicTransportButton(
+        title: "Play or pause",
+        systemImage: playback?.isPlaying == true ? "pause.fill" : "play.fill",
+        positionMode: positionMode,
+        isPrimary: true,
+        action: togglePlayPause
+      )
+
+      MusicTransportButton(
+        title: "Next track",
+        systemImage: "forward.end.fill",
+        positionMode: positionMode,
+        action: next
+      )
+    }
+    .frame(maxWidth: .infinity, alignment: .center)
+    .padding(.horizontal, positionMode == .notch ? 0 : 10)
+    .padding(.vertical, positionMode == .notch ? 2 : 6)
+    .background(positionMode == .notch ? Color.clear : Color.white.opacity(0.055))
+    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+  }
+}
+
+private struct MusicTransportButton: View {
+  let title: String
+  let systemImage: String
+  let positionMode: PositionMode
+  var isPrimary = false
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      Image(systemName: systemImage)
+        .font(.system(size: isPrimary ? 13 : 12, weight: .semibold))
+        .frame(width: buttonWidth, height: buttonHeight)
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .foregroundStyle(FlowlineDesign.foreground(for: positionMode))
+    .background(background)
+    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+    .help(title)
+    .accessibilityLabel(title)
+  }
+
+  private var buttonWidth: CGFloat {
+    if isPrimary {
+      return positionMode == .notch ? 42 : 48
+    }
+
+    return positionMode == .notch ? 32 : 36
+  }
+
+  private var buttonHeight: CGFloat {
+    positionMode == .notch ? 24 : 32
+  }
+
+  private var background: Color {
+    positionMode == .notch ? Color.clear : Color.white.opacity(isPrimary ? 0.055 : 0.018)
   }
 }

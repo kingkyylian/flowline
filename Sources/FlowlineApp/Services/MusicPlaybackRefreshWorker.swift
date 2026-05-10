@@ -27,11 +27,21 @@ actor MusicPlaybackRefreshWorker {
   }
 
   func run(command: MusicPlayerCommand) -> Bool {
-    guard let activeController else {
-      return false
+    if let activeController, activeController.isRunning() {
+      return activeController.run(command: command)
     }
 
-    return activeController.run(command: command)
+    for controller in controllers {
+      guard controller.isRunning() else {
+        continue
+      }
+
+      activeController = controller
+      return controller.run(command: command)
+    }
+
+    activeController = nil
+    return false
   }
 
   func replaceControllersForTesting(_ controllers: [any MusicPlayerControlling]) {

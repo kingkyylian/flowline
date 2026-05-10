@@ -9,6 +9,7 @@ import Testing
 
   #expect(status.branch == "main")
   #expect(status.isDirty == false)
+  #expect(status.repositoryName == nil)
 }
 
 @Test func parsesDirtyBranchStatus() throws {

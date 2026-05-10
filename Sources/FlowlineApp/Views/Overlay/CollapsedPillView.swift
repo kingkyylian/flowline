@@ -1,12 +1,19 @@
 import FlowlineCore
 import SwiftUI
 
+enum CollapsedPillUsageMetricsStyle {
+  static func opacity(isHovering: Bool) -> Double {
+    isHovering ? 0.88 : 0.56
+  }
+}
+
 struct CollapsedPillView: View {
   let snapshot: ContextSnapshot
   let aiUsage: AIUsageSnapshot?
   let width: Double
   let isHovering: Bool
   let positionMode: PositionMode
+  let showsUsageMetrics: Bool
 
   var body: some View {
     if positionMode == .notch {
@@ -35,7 +42,7 @@ struct CollapsedPillView: View {
       }
       .frame(width: 70)
 
-      if hasUsage {
+      if showsUsageMetrics && hasUsage {
         ZStack {
           if let weeklyPercent = codexUsage?.secondary?.percentLeft {
             NotchMetric(percent: weeklyPercent)
@@ -48,8 +55,7 @@ struct CollapsedPillView: View {
           }
         }
         .frame(width: width, height: NotchMetrics.collapsedHeight)
-        .opacity(isHovering ? 0.88 : 0)
-        .blur(radius: isHovering ? 0 : 1)
+        .opacity(CollapsedPillUsageMetricsStyle.opacity(isHovering: isHovering))
       }
     }
     .frame(width: width, height: NotchMetrics.collapsedHeight, alignment: .center)

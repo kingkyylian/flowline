@@ -72,7 +72,8 @@ struct OverlayRootView: View {
         aiUsage: state.aiUsage,
         width: state.positionMode == .notch ? notchCollapsedWidth : NotchMetrics.companionFallbackWidth,
         isHovering: state.isHovering,
-        positionMode: state.positionMode
+        positionMode: state.positionMode,
+        showsUsageMetrics: true
       )
     }
   }
@@ -106,11 +107,11 @@ struct OverlayRootView: View {
       ZStack(alignment: .top) {
         if state.isExpanded {
           FlowlineNotchShape(bottomRadius: 24)
-            .stroke(Color.white.opacity(0.055), lineWidth: 1)
+            .stroke(Color.white.opacity(0.02), lineWidth: 1)
             .frame(width: notchSurfaceWidth, height: notchSurfaceHeight)
         } else if state.isHovering {
           FlowlineNotchShape(bottomRadius: 18)
-            .stroke(Color.white.opacity(0.045), lineWidth: 1)
+            .stroke(Color.white.opacity(0.02), lineWidth: 1)
             .frame(width: notchSurfaceWidth, height: notchSurfaceHeight)
         }
 
@@ -120,7 +121,8 @@ struct OverlayRootView: View {
             aiUsage: state.aiUsage,
             width: state.physicalNotchWidth,
             isHovering: state.isHovering,
-            positionMode: .notch
+            positionMode: .notch,
+            showsUsageMetrics: false
           )
           .allowsHitTesting(false)
         }
@@ -161,7 +163,12 @@ struct OverlayRootView: View {
     }
 
     if state.positionMode == .notch {
-      return EdgeInsets(top: 38, leading: 12, bottom: 10, trailing: 12)
+      return EdgeInsets(
+        top: NotchMetrics.expandedContentTopInset,
+        leading: 12,
+        bottom: NotchMetrics.expandedContentBottomInset,
+        trailing: 12
+      )
     }
 
     return EdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10)

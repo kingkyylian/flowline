@@ -48,6 +48,57 @@ import Testing
   #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_778_174_910))
 }
 
+@Test func parsesCodexSessionRateLimitEvents() throws {
+  let data = """
+    {
+      "timestamp": "2026-05-08T15:23:22.952Z",
+      "type": "event_msg",
+      "payload": {
+        "type": "token_count",
+        "rate_limits": {
+          "limit_id": "codex",
+          "primary": {
+            "used_percent": 1,
+            "window_minutes": 300,
+            "resets_at": 1778271510
+          },
+          "secondary": {
+            "used_percent": 41,
+            "window_minutes": 10080,
+            "resets_at": 1778553993
+          }
+        }
+      }
+    }
+    """.data(using: .utf8)!
+
+  let usage = try #require(try CodexUsageParser.parseSessionEventProvider(data))
+
+  #expect(usage.provider == .codex)
+  #expect(usage.primary?.label == "Session")
+  #expect(usage.primary?.percentLeft == 99)
+  #expect(usage.secondary?.label == "Weekly")
+  #expect(usage.secondary?.percentLeft == 59)
+  #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_778_271_510))
+}
+
+@Test func ignoresNonDefaultCodexSessionRateLimitEvents() throws {
+  let data = """
+    {
+      "payload": {
+        "rate_limits": {
+          "limit_id": "codex_bengalfox",
+          "primary": {
+            "used_percent": 0
+          }
+        }
+      }
+    }
+    """.data(using: .utf8)!
+
+  #expect(try CodexUsageParser.parseSessionEventProvider(data) == nil)
+}
+
 @Test func parsesClaudeUsagePercentLeftValues() throws {
   let data = """
     {

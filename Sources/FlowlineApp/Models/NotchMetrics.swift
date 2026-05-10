@@ -10,9 +10,15 @@ enum NotchMetrics {
   static let expandedWidth = 600.0
   static let expandedContentWidth = 560.0
   static let expandedContentHeight = 104.0
-  static let contextColumnWidth = 138.0
-  static let agentColumnWidth = 212.0
-  static let utilityColumnWidth = 194.0
+  static let expandedContentTopInset = 28.0
+  static let expandedContentBottomInset = 10.0
+  static let centerColumnDrop = 14.0
+  static let utilityColumnShiftX = 34.0
+  static let utilityColumnDrop = 8.0
+  static let contextColumnWidth = 148.0
+  static let agentColumnWidth = 164.0
+  static let utilityColumnWidth = 232.0
+  static let musicTimelineWidth = 188.0
 
   static var collapsedWidth: Double {
     fallbackPhysicalWidth

@@ -45,8 +45,10 @@ final class GitContextService {
 
     let branch = runGit(["branch", "--show-current"], in: directory) ?? ""
     let porcelain = runGit(["status", "--porcelain"], in: directory) ?? ""
+    var status = GitStatusParser.parse(branchOutput: branch, porcelainOutput: porcelain)
+    status.repositoryName = directory.lastPathComponent
 
-    return GitStatusParser.parse(branchOutput: branch, porcelainOutput: porcelain)
+    return status
   }
 
   private func likelyWorkingDirectory(for context: ActiveAppContext) -> URL? {
