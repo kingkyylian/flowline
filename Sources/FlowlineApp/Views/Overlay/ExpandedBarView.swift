@@ -57,8 +57,12 @@ private struct NotchCockpitView: View {
         refreshUsage: state.refreshAIUsage,
         copyContext: state.copyContextSummary
       )
-      .frame(width: NotchMetrics.agentColumnWidth)
-      .offset(y: NotchMetrics.centerColumnDrop)
+      .frame(
+        width: NotchMetrics.agentColumnWidth,
+        height: NotchMetrics.expandedContentHeight - NotchMetrics.centerColumnDrop,
+        alignment: .top
+      )
+      .padding(.top, NotchMetrics.centerColumnDrop)
 
       NotchUtilityColumn(
         musicEnabled: state.musicModuleEnabled,
@@ -71,8 +75,13 @@ private struct NotchCockpitView: View {
         togglePlayPause: state.musicTogglePlayPause,
         next: state.musicNextTrack
       )
-      .frame(width: NotchMetrics.utilityColumnWidth)
-      .offset(x: NotchMetrics.utilityColumnShiftX, y: NotchMetrics.utilityColumnDrop)
+      .frame(
+        width: NotchMetrics.utilityColumnWidth,
+        height: NotchMetrics.expandedContentHeight - NotchMetrics.utilityColumnDrop,
+        alignment: .top
+      )
+      .padding(.top, NotchMetrics.utilityColumnDrop)
+      .offset(x: NotchMetrics.utilityColumnShiftX)
     }
     .frame(width: NotchMetrics.expandedContentWidth, height: NotchMetrics.expandedContentHeight)
     .background {

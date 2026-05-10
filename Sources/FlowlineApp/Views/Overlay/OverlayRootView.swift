@@ -63,7 +63,6 @@ struct OverlayRootView: View {
     if state.isExpanded {
       ExpandedBarView(state: state)
         .opacity(shouldDelayExpandedContent ? (expandedContentVisible ? 1 : 0) : 1)
-        .offset(y: shouldDelayExpandedContent && !expandedContentVisible ? -5 : 0)
         .allowsHitTesting(!shouldDelayExpandedContent || expandedContentVisible)
         .animation(.smooth(duration: 0.16), value: expandedContentVisible)
     } else {
