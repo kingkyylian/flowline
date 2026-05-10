@@ -14,7 +14,7 @@ public struct FlowlineModulePreferences: Equatable, Sendable {
   }
 
   public static let defaults = FlowlineModulePreferences(
-    context: true,
+    context: false,
     music: true,
     calendar: false,
     shelf: true

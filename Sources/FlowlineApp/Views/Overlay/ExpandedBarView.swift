@@ -45,7 +45,25 @@ private struct NotchCockpitView: View {
 
   var body: some View {
     ZStack(alignment: .topLeading) {
-      NotchWorkspaceColumn(snapshot: state.snapshot)
+      if state.workspaceModuleEnabled {
+        NotchWorkspaceColumn(snapshot: state.snapshot)
+          .frame(
+            width: NotchMetrics.contextColumnWidth,
+            height: NotchMetrics.expandedContentHeight,
+            alignment: .top
+          )
+          .position(
+            x: NotchMetrics.contextColumnWidth / 2,
+            y: NotchMetrics.expandedContentHeight / 2
+          )
+      } else {
+        NotchQuickActionsColumn(
+          snapshot: state.snapshot,
+          actions: state.actions,
+          perform: state.perform,
+          refreshUsage: state.refreshAIUsage,
+          copyContext: state.copyContextSummary
+        )
         .frame(
           width: NotchMetrics.contextColumnWidth,
           height: NotchMetrics.expandedContentHeight,
@@ -55,12 +73,14 @@ private struct NotchCockpitView: View {
           x: NotchMetrics.contextColumnWidth / 2,
           y: NotchMetrics.expandedContentHeight / 2
         )
+      }
 
       NotchAgentColumn(
         snapshot: state.snapshot,
         providers: state.agentProviders,
         usage: state.aiUsage,
         actions: state.actions,
+        showsUtilityActions: state.workspaceModuleEnabled,
         perform: state.perform,
         refreshUsage: state.refreshAIUsage,
         copyContext: state.copyContextSummary
@@ -109,6 +129,102 @@ private struct NotchCockpitView: View {
 
   private var utilityColumnX: Double {
     NotchMetrics.expandedContentWidth - NotchMetrics.utilityColumnWidth
+  }
+}
+
+private struct NotchQuickActionsColumn: View {
+  let snapshot: ContextSnapshot
+  let actions: [FlowlineAction]
+  let perform: (FlowlineAction) -> Void
+  let refreshUsage: () -> Void
+  let copyContext: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      PanelHeader(title: "ACTIONS", systemImage: "bolt", positionMode: .notch)
+
+      Text(title)
+        .font(FlowlineDesign.Typography.notchTitle)
+        .foregroundStyle(FlowlineDesign.foreground(for: .notch))
+        .lineLimit(1)
+        .minimumScaleFactor(0.78)
+        .help(title)
+
+      Text(detail)
+        .font(FlowlineDesign.Typography.subtitle)
+        .foregroundStyle(FlowlineDesign.secondary(for: .notch))
+        .lineLimit(1)
+        .minimumScaleFactor(0.78)
+        .help(detail)
+
+      Spacer(minLength: 0)
+
+      HStack(spacing: 6) {
+        FlowlineIconButton(
+          title: "Copy context",
+          systemImage: "doc.on.doc",
+          positionMode: .notch,
+          action: copyContext
+        )
+
+        FlowlineIconButton(
+          title: "Refresh limits",
+          systemImage: "arrow.clockwise",
+          positionMode: .notch,
+          action: refreshUsage
+        )
+
+        ForEach(actions.prefix(2)) { action in
+          FlowlineIconButton(
+            title: action.title,
+            systemImage: action.systemImage,
+            positionMode: .notch,
+            action: { perform(action) }
+          )
+        }
+      }
+    }
+    .padding(FlowlineDesign.Metrics.notchColumnPadding)
+  }
+
+  private var title: String {
+    if snapshot.nextEvent?.meetingURL != nil {
+      return "Meeting ready"
+    }
+
+    if !snapshot.shelfItems.isEmpty {
+      return "\(snapshot.shelfItems.count) shelf item\(snapshot.shelfItems.count == 1 ? "" : "s")"
+    }
+
+    if snapshot.permissions.accessibility != .granted {
+      return "Permission needed"
+    }
+
+    if let git = snapshot.git, git.isDirty {
+      return "Workspace dirty"
+    }
+
+    return "Ready"
+  }
+
+  private var detail: String {
+    if let event = snapshot.nextEvent {
+      return event.title
+    }
+
+    if let item = snapshot.shelfItems.first {
+      return item.title
+    }
+
+    if snapshot.permissions.accessibility != .granted {
+      return "Accessibility access"
+    }
+
+    if let git = snapshot.git {
+      return git.branch
+    }
+
+    return "Copy or refresh"
   }
 }
 
@@ -224,6 +340,7 @@ private struct NotchAgentColumn: View {
   let providers: [String]
   let usage: AIUsageSnapshot?
   let actions: [FlowlineAction]
+  let showsUtilityActions: Bool
   let perform: (FlowlineAction) -> Void
   let refreshUsage: () -> Void
   let copyContext: () -> Void
@@ -253,28 +370,30 @@ private struct NotchAgentColumn: View {
 
       Spacer(minLength: 0)
 
-      HStack(spacing: 6) {
-        FlowlineIconButton(
-          title: "Copy context",
-          systemImage: "doc.on.doc",
-          positionMode: .notch,
-          action: copyContext
-        )
-
-        FlowlineIconButton(
-          title: "Refresh limits",
-          systemImage: "arrow.clockwise",
-          positionMode: .notch,
-          action: refreshUsage
-        )
-
-        ForEach(actions.prefix(4)) { action in
+      if showsUtilityActions {
+        HStack(spacing: 6) {
           FlowlineIconButton(
-            title: action.title,
-            systemImage: action.systemImage,
+            title: "Copy context",
+            systemImage: "doc.on.doc",
             positionMode: .notch,
-            action: { perform(action) }
+            action: copyContext
           )
+
+          FlowlineIconButton(
+            title: "Refresh limits",
+            systemImage: "arrow.clockwise",
+            positionMode: .notch,
+            action: refreshUsage
+          )
+
+          ForEach(actions.prefix(4)) { action in
+            FlowlineIconButton(
+              title: action.title,
+              systemImage: action.systemImage,
+              positionMode: .notch,
+              action: { perform(action) }
+            )
+          }
         }
       }
     }

@@ -74,10 +74,10 @@ struct SettingsView: View {
   private var modulesContent: some View {
     VStack(alignment: .leading, spacing: 14) {
       SettingsBlock(title: "Overlay modules") {
-        ModuleStatusRow(
-          title: "Context",
-          detail: "Active app and developer state",
-          value: "Core"
+        ModuleToggleRow(
+          title: "Workspace",
+          detail: "App and repo column",
+          isOn: $state.workspaceModuleEnabled
         )
 
         SettingsDivider()

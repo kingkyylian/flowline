@@ -15,6 +15,11 @@ final class AppState: ObservableObject {
   @Published var physicalNotchWidth = NotchMetrics.fallbackPhysicalWidth
   @Published var physicalNotchHeight = NotchMetrics.collapsedHeight
   @Published private(set) var positionMode: PositionMode = .notch
+  @Published var workspaceModuleEnabled = AppState.defaultBool(forKey: UserDefaultsKey.workspaceModuleEnabled, fallback: FlowlineModulePreferences.defaults.context) {
+    didSet {
+      UserDefaults.standard.set(workspaceModuleEnabled, forKey: UserDefaultsKey.workspaceModuleEnabled)
+    }
+  }
   @Published var musicModuleEnabled = AppState.defaultBool(forKey: UserDefaultsKey.musicModuleEnabled, fallback: FlowlineModulePreferences.defaults.music) {
     didSet {
       UserDefaults.standard.set(musicModuleEnabled, forKey: UserDefaultsKey.musicModuleEnabled)
@@ -278,6 +283,7 @@ final class AppState: ObservableObject {
 }
 
 private enum UserDefaultsKey {
+  static let workspaceModuleEnabled = "module.workspace.enabled"
   static let musicModuleEnabled = "module.music.enabled"
   static let calendarModuleEnabled = "module.calendar.enabled"
   static let shelfModuleEnabled = "module.shelf.enabled"
