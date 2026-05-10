@@ -51,6 +51,19 @@ Run tests:
 swift test
 ```
 
+## Release
+
+Local debug bundles are built with `script/build_and_run.sh`. Distributable
+archives must use the release packaging script, a Developer ID Application
+certificate, hardened runtime, and notarization:
+
+```bash
+FLOWLINE_DEVELOPER_ID_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+  script/package_release.sh --archive
+```
+
+See `docs/RELEASE.md` for notarization and manual QA checks.
+
 ## Roadmap
 
 - Capsule-style static modules for Codex, Claude, GitHub, Linear, and design workflows.
