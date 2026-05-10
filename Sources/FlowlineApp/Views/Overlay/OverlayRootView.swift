@@ -18,6 +18,10 @@ struct OverlayRootView: View {
     .animation(.smooth(duration: 0.16), value: state.isHovering)
     .contentShape(Rectangle())
     .onHover { hovering in
+      guard state.positionMode == .companion else {
+        return
+      }
+
       withAnimation(.smooth(duration: 0.20)) {
         state.isHovering = hovering
       }
