@@ -6,10 +6,14 @@ import Foundation
 final class MusicControlService: ObservableObject {
   @Published private(set) var snapshot: MusicPlaybackSnapshot?
 
-  private let worker = MusicPlaybackRefreshWorker()
+  private let worker: MusicPlaybackRefreshWorker
   private var timer: Timer?
   private var refreshTask: Task<Void, Never>?
   private var commandRefreshTask: Task<Void, Never>?
+
+  init(worker: MusicPlaybackRefreshWorker = MusicPlaybackRefreshWorker()) {
+    self.worker = worker
+  }
 
   func start() {
     refresh()
@@ -45,15 +49,8 @@ final class MusicControlService: ObservableObject {
   }
 
   func togglePlayPause() {
-    let command: MusicPlayerCommand
-    if let snapshot {
-      command = snapshot.isPlaying ? .pause : .play
-    } else {
-      command = .togglePlayPause
-    }
-
     snapshot = snapshot?.toggledPlayback(at: Date())
-    run(command: command)
+    run(command: .togglePlayPause)
   }
 
   func nextTrack() {

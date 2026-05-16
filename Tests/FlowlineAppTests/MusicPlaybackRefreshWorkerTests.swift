@@ -1,4 +1,5 @@
 import FlowlineCore
+import Foundation
 import Testing
 @testable import FlowlineApp
 
@@ -52,6 +53,29 @@ import Testing
   #expect(MusicPlayerCommand.nextTrack.appleScriptCommand == "next track")
 }
 
+@MainActor
+@Test func musicControlTogglesCurrentPlayerStateWithoutTrustingStaleSnapshot() async throws {
+  let snapshot = MusicPlaybackSnapshot(
+    source: "Spotify",
+    title: "Remote track",
+    artist: "Remote artist",
+    isPlaying: true,
+    elapsed: 12,
+    duration: 180
+  )
+  let controller = RecordingMusicPlayerController(source: .spotify, snapshot: snapshot)
+  let worker = MusicPlaybackRefreshWorker(controllers: [controller])
+  let service = MusicControlService(worker: worker)
+
+  service.refresh()
+  try await waitUntil { service.snapshot != nil }
+
+  service.togglePlayPause()
+  try await waitUntil { !controller.commands.isEmpty }
+
+  #expect(controller.commands == [.togglePlayPause])
+}
+
 private struct FakeMusicPlayerController: MusicPlayerControlling {
   let source: MusicPlaybackSource
   let isRunningValue: Bool
@@ -70,3 +94,55 @@ private struct FakeMusicPlayerController: MusicPlayerControlling {
     commandResult
   }
 }
+
+private final class RecordingMusicPlayerController: MusicPlayerControlling, @unchecked Sendable {
+  let source: MusicPlaybackSource
+  let snapshot: MusicPlaybackSnapshot?
+  private let lock = NSLock()
+  private var recordedCommands: [MusicPlayerCommand] = []
+
+  init(source: MusicPlaybackSource, snapshot: MusicPlaybackSnapshot?) {
+    self.source = source
+    self.snapshot = snapshot
+  }
+
+  var commands: [MusicPlayerCommand] {
+    lock.withLock {
+      recordedCommands
+    }
+  }
+
+  func isRunning() -> Bool {
+    true
+  }
+
+  func playbackSnapshot() -> MusicPlaybackSnapshot? {
+    snapshot
+  }
+
+  func run(command: MusicPlayerCommand) -> Bool {
+    lock.withLock {
+      recordedCommands.append(command)
+    }
+    return true
+  }
+}
+
+@MainActor
+private func waitUntil(
+  timeout: TimeInterval = 0.5,
+  predicate: @escaping () -> Bool
+) async throws {
+  let deadline = Date().addingTimeInterval(timeout)
+  while Date() < deadline {
+    if predicate() {
+      return
+    }
+
+    try await Task.sleep(for: .milliseconds(10))
+  }
+
+  throw WaitTimeoutError()
+}
+
+private struct WaitTimeoutError: Error {}
