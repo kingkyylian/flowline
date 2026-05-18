@@ -116,12 +116,16 @@ final class AppState: ObservableObject {
   private let activeAppMonitor = ActiveAppMonitor()
   private let gitService = GitContextService()
   private let calendarService = CalendarService()
-  private let shelfService = ShelfService()
+  private let shelfService: ShelfService
   private let agentProviderService = AgentProviderService()
   private let aiUsageService = AIUsageService()
   private let musicService = MusicControlService()
   private var permissionRefreshTask: Task<Void, Never>?
   private var cancellables: Set<AnyCancellable> = []
+
+  init(shelfService: ShelfService = ShelfService()) {
+    self.shelfService = shelfService
+  }
 
   isolated deinit {
     permissionRefreshTask?.cancel()
@@ -352,7 +356,7 @@ final class AppState: ObservableObject {
       .store(in: &cancellables)
 
     shelfService.$items
-      .sink { [weak self] _ in self?.refreshSnapshot(refreshGit: false) }
+      .sink { [weak self] items in self?.refreshSnapshot(refreshGit: false, shelfItems: items) }
       .store(in: &cancellables)
 
     aiUsageService.$snapshot
@@ -437,7 +441,7 @@ final class AppState: ObservableObject {
     }
   }
 
-  private func refreshSnapshot(refreshGit: Bool = true) {
+  private func refreshSnapshot(refreshGit: Bool = true, shelfItems: [ShelfItem]? = nil) {
     let active = activeAppMonitor.context
     let previousGit = snapshot.activeApp == active ? snapshot.git : nil
     let git = active.isDeveloperApp
@@ -452,7 +456,7 @@ final class AppState: ObservableObject {
       activeApp: active,
       git: git,
       nextEvent: calendarModuleEnabled ? calendarService.nextEvent : nil,
-      shelfItems: shelfModuleEnabled ? shelfService.items : [],
+      shelfItems: shelfModuleEnabled ? (shelfItems ?? shelfService.items) : [],
       permissions: permissionState
     )
     actions = ActionBuilder.actions(for: snapshot)
