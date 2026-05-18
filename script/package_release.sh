@@ -8,6 +8,7 @@ RELEASE_DIR="$ROOT_DIR/dist/release"
 BUNDLE_PATH="$RELEASE_DIR/$APP_NAME.app"
 ZIP_PATH="$RELEASE_DIR/$APP_NAME-${FLOWLINE_VERSION:-0.1.0}.zip"
 EXECUTABLE_PATH="$ROOT_DIR/.build/release/$PRODUCT_NAME"
+ICON_PATH="$ROOT_DIR/Resources/Flowline.icns"
 
 BUNDLE_ID="${FLOWLINE_BUNDLE_ID:-dev.kyylian.flowline}"
 VERSION="${FLOWLINE_VERSION:-0.1.0}"
@@ -54,13 +55,19 @@ if [[ "$SIGN_IDENTITY" != Developer\ ID\ Application:* ]]; then
   exit 2
 fi
 
+if [[ ! -f "$ICON_PATH" ]]; then
+  echo "error: missing app icon at $ICON_PATH. Run script/generate_app_icon.sh first." >&2
+  exit 2
+fi
+
 cd "$ROOT_DIR"
 
 swift build -c release
 
 rm -rf "$BUNDLE_PATH" "$ZIP_PATH"
-mkdir -p "$BUNDLE_PATH/Contents/MacOS"
+mkdir -p "$BUNDLE_PATH/Contents/MacOS" "$BUNDLE_PATH/Contents/Resources"
 cp "$EXECUTABLE_PATH" "$BUNDLE_PATH/Contents/MacOS/$APP_NAME"
+cp "$ICON_PATH" "$BUNDLE_PATH/Contents/Resources/Flowline.icns"
 
 cat > "$BUNDLE_PATH/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -75,6 +82,8 @@ cat > "$BUNDLE_PATH/Contents/Info.plist" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundleIdentifier</key>
   <string>$BUNDLE_ID</string>
+  <key>CFBundleIconFile</key>
+  <string>Flowline.icns</string>
   <key>CFBundleName</key>
   <string>$APP_NAME</string>
   <key>CFBundlePackageType</key>
@@ -89,6 +98,8 @@ cat > "$BUNDLE_PATH/Contents/Info.plist" <<PLIST
   <string>14.0</string>
   <key>LSUIElement</key>
   <true/>
+  <key>NSDesktopFolderUsageDescription</key>
+  <string>Flowline watches the Desktop for new screenshots when Hold screenshot capture is enabled.</string>
   <key>NSAppleEventsUsageDescription</key>
   <string>Flowline reads local now-playing details from Spotify or Music to show the current track in the notch.</string>
   <key>NSCalendarsUsageDescription</key>

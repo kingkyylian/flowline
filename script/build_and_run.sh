@@ -8,7 +8,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 BUNDLE_PATH="$DIST_DIR/$APP_NAME.app"
 EXECUTABLE_PATH="$ROOT_DIR/.build/debug/$PRODUCT_NAME"
+ICON_PATH="$ROOT_DIR/Resources/Flowline.icns"
 MODE="${1:-}"
+
+if [[ ! -f "$ICON_PATH" ]]; then
+  echo "error: missing app icon at $ICON_PATH. Run script/generate_app_icon.sh first." >&2
+  exit 2
+fi
 
 resolve_codesign_identity() {
   if [[ -n "${FLOWLINE_CODESIGN_IDENTITY:-}" ]]; then
@@ -30,8 +36,9 @@ fi
 swift build
 
 rm -rf "$BUNDLE_PATH"
-mkdir -p "$BUNDLE_PATH/Contents/MacOS"
+mkdir -p "$BUNDLE_PATH/Contents/MacOS" "$BUNDLE_PATH/Contents/Resources"
 cp "$EXECUTABLE_PATH" "$BUNDLE_PATH/Contents/MacOS/$APP_NAME"
+cp "$ICON_PATH" "$BUNDLE_PATH/Contents/Resources/Flowline.icns"
 
 cat > "$BUNDLE_PATH/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -44,6 +51,8 @@ cat > "$BUNDLE_PATH/Contents/Info.plist" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundleIdentifier</key>
   <string>$BUNDLE_ID</string>
+  <key>CFBundleIconFile</key>
+  <string>Flowline.icns</string>
   <key>CFBundleName</key>
   <string>$APP_NAME</string>
   <key>CFBundlePackageType</key>
@@ -56,6 +65,8 @@ cat > "$BUNDLE_PATH/Contents/Info.plist" <<PLIST
   <string>14.0</string>
   <key>LSUIElement</key>
   <true/>
+  <key>NSDesktopFolderUsageDescription</key>
+  <string>Flowline watches the Desktop for new screenshots when Hold screenshot capture is enabled.</string>
   <key>NSCalendarsUsageDescription</key>
   <string>Flowline shows the next local calendar event in the top-edge context bar.</string>
   <key>NSAppleEventsUsageDescription</key>
@@ -69,7 +80,7 @@ PLIST
 SIGN_IDENTITY="$(resolve_codesign_identity || true)"
 if [[ -n "$SIGN_IDENTITY" ]]; then
   codesign --force --deep --sign "$SIGN_IDENTITY" "$BUNDLE_PATH"
-  if codesign --verify --deep "$BUNDLE_PATH" >/dev/null 2>&1; then
+  if codesign --verify --deep --strict "$BUNDLE_PATH" >/dev/null 2>&1; then
     echo "Signed Flowline with identity: $SIGN_IDENTITY"
   else
     echo "warning: identity '$SIGN_IDENTITY' is not trusted for local code signing; falling back to ad-hoc signing." >&2

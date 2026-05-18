@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import EventKit
 import FlowlineCore
@@ -5,6 +6,10 @@ import Foundation
 
 @MainActor
 final class CalendarService: ObservableObject {
+  static let privacySettingsURL = URL(
+    string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars"
+  )!
+
   @Published private(set) var nextEvent: CalendarEvent?
   @Published private(set) var permission: PermissionAccess = .notDetermined
 
@@ -36,6 +41,17 @@ final class CalendarService: ObservableObject {
   }
 
   func requestAccess() {
+    refreshPermission()
+
+    guard permission != .granted else {
+      return
+    }
+
+    if permission == .denied {
+      NSWorkspace.shared.open(Self.privacySettingsURL)
+      return
+    }
+
     if #available(macOS 14.0, *) {
       store.requestFullAccessToEvents { [weak self] _, _ in
         Task { @MainActor in
