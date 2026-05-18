@@ -1,6 +1,5 @@
 import FlowlineCore
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct OverlayRootView: View {
   @ObservedObject var state: AppState
@@ -36,21 +35,6 @@ struct OverlayRootView: View {
       }
     }
     .help("Click to toggle Flowline")
-    .onDrop(of: [.fileURL], isTargeted: nil) { providers in
-      providers.forEach { provider in
-        _ = provider.loadObject(ofClass: URL.self) { url, _ in
-          guard let url else {
-            return
-          }
-
-          Task { @MainActor in
-            state.addShelfFiles([url])
-          }
-        }
-      }
-
-      return true
-    }
     .onAppear {
       expandedContentVisible = state.isExpanded
     }

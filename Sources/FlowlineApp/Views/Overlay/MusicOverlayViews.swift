@@ -250,7 +250,7 @@ private struct MusicTransportButton: View {
   }
 
   private var buttonHeight: CGFloat {
-    positionMode == .notch ? 24 : 32
+    positionMode == .notch ? NotchUtilityMusicLayout.transportButtonHeight : 32
   }
 
   private var background: Color {

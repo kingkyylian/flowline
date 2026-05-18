@@ -11,6 +11,7 @@ final class OverlayController {
   private var mouseMonitor: Any?
   private var collapsedHoverGlobalMonitor: Any?
   private var collapsedHoverLocalMonitor: Any?
+  private var dragPasteboardBaselineChangeCount = NSPasteboard(name: .drag).changeCount
   private var cancellables: Set<AnyCancellable> = []
 
   init(state: AppState) {
@@ -152,21 +153,22 @@ final class OverlayController {
     }
 
     if collapsedHoverGlobalMonitor == nil {
+      refreshDragPasteboardBaseline()
       collapsedHoverGlobalMonitor = NSEvent.addGlobalMonitorForEvents(
-        matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
-      ) { [weak self] _ in
+        matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .leftMouseUp, .rightMouseUp]
+      ) { [weak self] event in
         Task { @MainActor in
-          self?.updateCollapsedHoverState()
+          self?.updateCollapsedHoverState(for: NSEvent.mouseLocation, eventType: event.type)
         }
       }
     }
 
     if collapsedHoverLocalMonitor == nil {
       collapsedHoverLocalMonitor = NSEvent.addLocalMonitorForEvents(
-        matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
+        matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .leftMouseUp, .rightMouseUp]
       ) { [weak self] event in
         Task { @MainActor in
-          self?.updateCollapsedHoverState()
+          self?.updateCollapsedHoverState(for: NSEvent.mouseLocation, eventType: event.type)
         }
         return event
       }
@@ -192,12 +194,51 @@ final class OverlayController {
       return
     }
 
-    let isHovering = collapsedNotchScreenFrame.contains(NSEvent.mouseLocation)
+    updateCollapsedHoverState(for: NSEvent.mouseLocation, eventType: .mouseMoved)
+  }
+
+  private func updateCollapsedHoverState(for mouseLocation: NSPoint, eventType: NSEvent.EventType) {
+    guard state.positionMode == .notch, !state.isExpanded else {
+      return
+    }
+
+    if eventType != .leftMouseDragged && eventType != .rightMouseDragged {
+      refreshDragPasteboardBaseline()
+    }
+
+    let activationFrame = collapsedNotchDragActivationFrame
+    if OverlayDragActivation.shouldExpandCollapsedNotch(
+      eventType: eventType,
+      positionMode: state.positionMode,
+      isExpanded: state.isExpanded,
+      dragPasteboard: currentDragPasteboard(for: eventType),
+      dragPasteboardBaselineChangeCount: dragPasteboardBaselineChangeCount,
+      mouseLocation: mouseLocation,
+      collapsedFrame: activationFrame
+    ) {
+      state.isExpanded = true
+      state.isHovering = false
+      return
+    }
+
+    let isHovering = collapsedNotchScreenFrame.contains(mouseLocation)
     guard state.isHovering != isHovering else {
       return
     }
 
     state.isHovering = isHovering
+  }
+
+  private func currentDragPasteboard(for eventType: NSEvent.EventType) -> NSPasteboard? {
+    guard eventType == .leftMouseDragged || eventType == .rightMouseDragged else {
+      return nil
+    }
+
+    return NSPasteboard(name: .drag)
+  }
+
+  private func refreshDragPasteboardBaseline() {
+    dragPasteboardBaselineChangeCount = NSPasteboard(name: .drag).changeCount
   }
 
   private func windowSize(positionMode: PositionMode) -> NSSize {
@@ -256,6 +297,18 @@ final class OverlayController {
       y: panel.frame.maxY - state.physicalNotchHeight,
       width: state.physicalNotchWidth,
       height: state.physicalNotchHeight
+    )
+  }
+
+  private var collapsedNotchDragActivationFrame: NSRect {
+    let width = NotchMetrics.expandedWidth
+    let height = state.physicalNotchHeight + 44
+
+    return NSRect(
+      x: panel.frame.midX - width / 2,
+      y: panel.frame.maxY - height,
+      width: width,
+      height: height
     )
   }
 

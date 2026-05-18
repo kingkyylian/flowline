@@ -32,9 +32,7 @@ struct CollapsedPillView: View {
           .help(statusHelp)
           .accessibilityLabel(statusHelp)
 
-        Image(systemName: iconName)
-          .font(.system(size: 9, weight: .medium))
-          .foregroundStyle(Color.white.opacity(isHovering ? 0.70 : 0.30))
+        collapsedIcon
 
         Circle()
           .fill(secondaryDotColor)
@@ -105,10 +103,7 @@ struct CollapsedPillView: View {
         .help(statusHelp)
         .accessibilityLabel(statusHelp)
 
-      Image(systemName: iconName)
-        .font(.system(size: 10, weight: .medium))
-        .foregroundStyle(foreground.opacity(0.58))
-        .frame(width: 14)
+      companionIcon
 
       Text(title)
         .font(.system(size: 13, weight: .semibold, design: .monospaced))
@@ -134,7 +129,36 @@ struct CollapsedPillView: View {
     .background(isHovering ? Color.primary.opacity(0.04) : Color.clear)
   }
 
-  private var iconName: String {
+  @ViewBuilder
+  private var collapsedIcon: some View {
+    if let iconName {
+      Image(systemName: iconName)
+        .font(.system(size: 9, weight: .medium))
+        .foregroundStyle(Color.white.opacity(isHovering ? 0.70 : 0.30))
+    } else {
+      FlowlineMarkView(
+        size: FlowlineMarkMetrics.collapsedSize,
+        opacity: isHovering ? 0.78 : 0.34
+      )
+      .foregroundStyle(.white)
+    }
+  }
+
+  @ViewBuilder
+  private var companionIcon: some View {
+    if let iconName {
+      Image(systemName: iconName)
+        .font(.system(size: 10, weight: .medium))
+        .foregroundStyle(foreground.opacity(0.58))
+        .frame(width: 14)
+    } else {
+      FlowlineMarkView(size: FlowlineMarkMetrics.collapsedSize, opacity: 0.58)
+        .foregroundStyle(foreground)
+        .frame(width: 14)
+    }
+  }
+
+  private var iconName: String? {
     if snapshot.activeApp.isDeveloperApp {
       return "chevron.left.forwardslash.chevron.right"
     }
@@ -143,7 +167,7 @@ struct CollapsedPillView: View {
       return "calendar"
     }
 
-    return "point.3.connected.trianglepath.dotted"
+    return nil
   }
 
   private var statusColor: Color {
