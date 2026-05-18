@@ -3,7 +3,7 @@ import SwiftUI
 
 struct SettingsView: View {
   @ObservedObject var state: AppState
-  @State private var selectedCategory: SettingsCategory = .permissions
+  @State private var selectedCategory: SettingsPanelCategory = .general
 
   var body: some View {
     HStack(spacing: 0) {
@@ -30,85 +30,39 @@ struct SettingsView: View {
   @ViewBuilder
   private var detailContent: some View {
     switch selectedCategory {
-    case .permissions:
-      permissionsContent
+    case .general:
+      generalContent
+    case .hold:
+      holdContent
     case .modules:
       modulesContent
-    case .behavior:
-      behaviorContent
+    case .shortcuts:
+      shortcutsContent
+    case .about:
+      aboutContent
     }
   }
 
-  private var permissionsContent: some View {
-    VStack(alignment: .leading, spacing: 14) {
+  private var generalContent: some View {
+    let items = permissionItems
+    let permissionHealth = SettingsPresentation.permissionHealth(for: items)
+
+    return VStack(alignment: .leading, spacing: 14) {
       PermissionHealthHeader(
-        title: permissionHealthTitle,
-        subtitle: "Required access for the notch layer"
+        title: permissionHealth.title,
+        subtitle: permissionHealth.subtitle,
+        isReady: permissionHealth.isReady
       )
 
       SettingsBlock(title: "Privacy") {
-        PermissionRow(
-          title: "Accessibility",
-          requirement: "Required",
-          status: state.snapshot.permissions.accessibility,
-          deniedLabel: "Needs access",
-          actionTitle: "Open Settings",
-          action: state.requestAccessibilityPermission
-        )
-
-        if state.calendarModuleEnabled {
-          SettingsDivider()
-
+        ForEach(items, id: \.title) { item in
           PermissionRow(
-            title: "Calendar",
-            requirement: "Optional",
-            status: state.snapshot.permissions.calendar,
-            actionTitle: "Allow",
-            action: state.requestCalendarPermission
+            item: item,
+            action: permissionAction(for: item.action)
           )
         }
       }
-    }
-  }
 
-  private var modulesContent: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      SettingsBlock(title: "Overlay modules") {
-        ModuleToggleRow(
-          title: "Workspace",
-          detail: "App and repo column",
-          isOn: $state.workspaceModuleEnabled
-        )
-
-        SettingsDivider()
-
-        ModuleToggleRow(
-          title: "Music",
-          detail: "Now playing and media keys",
-          isOn: $state.musicModuleEnabled
-        )
-
-        SettingsDivider()
-
-        ModuleToggleRow(
-          title: "Calendar",
-          detail: "Next event and meeting actions",
-          isOn: $state.calendarModuleEnabled
-        )
-
-        SettingsDivider()
-
-        ModuleToggleRow(
-          title: "Shelf",
-          detail: "Session items and dropped files",
-          isOn: $state.shelfModuleEnabled
-        )
-      }
-    }
-  }
-
-  private var behaviorContent: some View {
-    VStack(alignment: .leading, spacing: 14) {
       SettingsBlock(title: "Behavior") {
         SettingsRow(title: "Launch at login") {
           SquareToggle(isOn: $state.launchAtLogin)
@@ -119,9 +73,55 @@ struct SettingsView: View {
         SettingsRow(title: "Show over fullscreen") {
           SquareToggle(isOn: $state.showOverFullscreen)
         }
+      }
+    }
+  }
+
+  private var holdContent: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      SettingsBlock(title: "Hold capture") {
+        SettingsRow(title: "Screenshots") {
+          SquareToggle(isOn: $state.holdAutoCaptureScreenshots)
+        }
 
         SettingsDivider()
 
+        SettingsRow(title: "Clipboard text") {
+          SquareToggle(isOn: $state.holdAutoCaptureClipboardText)
+        }
+      }
+    }
+  }
+
+  private var modulesContent: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      SettingsBlock(title: "Layout preview \(state.overlayModuleCountLabel)") {
+        SettingsLayoutPreview(items: SettingsPresentation.modulePreviewItems(for: modulePreferences))
+      }
+
+      ForEach(SettingsPresentation.moduleLayerSections()) { section in
+        SettingsBlock(title: section.title) {
+          ForEach(section.items) { item in
+            ModuleToggleRow(
+              title: item.title,
+              detail: item.detail,
+              status: state.moduleStatusLabel(for: item.module),
+              isDisabled: moduleToggleIsDisabled(item.module),
+              isOn: moduleBinding(item.module)
+            )
+
+            if item.id != section.items.last?.id {
+              SettingsDivider()
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var shortcutsContent: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      SettingsBlock(title: "Keyboard") {
         SettingsRow(title: "Expand") {
           Keycap("Option Space")
         }
@@ -129,38 +129,108 @@ struct SettingsView: View {
     }
   }
 
-  private var permissionHealthTitle: String {
-    state.snapshot.permissions.accessibility == .granted ? "All required permissions active" : "1 permission needed"
-  }
+  private var aboutContent: some View {
+    let info = SettingsPresentation.currentAboutInfo()
 
-}
+    return VStack(alignment: .leading, spacing: 14) {
+      SettingsBlock(title: info.appName) {
+        ModuleStatusRow(
+          title: "Version",
+          detail: "Release build",
+          value: info.versionLabel
+        )
 
-private enum SettingsCategory: String, CaseIterable, Identifiable {
-  case permissions
-  case modules
-  case behavior
+        SettingsDivider()
 
-  var id: String { rawValue }
+        ModuleStatusRow(
+          title: "Bundle ID",
+          detail: "Application identifier",
+          value: info.bundleIdentifier
+        )
 
-  var title: String {
-    switch self {
-    case .permissions:
-      return "Permissions"
-    case .modules:
-      return "Modules"
-    case .behavior:
-      return "Behavior"
+        SettingsDivider()
+
+        ModuleStatusRow(
+          title: "License",
+          detail: "Open source",
+          value: info.licenseName
+        )
+
+        SettingsDivider()
+
+        ModuleStatusRow(
+          title: "Updates",
+          detail: "GitHub releases",
+          value: info.updateModeLabel
+        )
+      }
+
+      SettingsBlock(title: "Project") {
+        AboutLinkRow(
+          title: "GitHub",
+          detail: "Source",
+          url: info.githubURL,
+          open: state.open
+        )
+
+        SettingsDivider()
+
+        AboutLinkRow(
+          title: "Releases",
+          detail: "Downloads",
+          url: info.releasesURL,
+          open: state.open
+        )
+
+        SettingsDivider()
+
+        AboutLinkRow(
+          title: "License",
+          detail: info.licenseName,
+          url: info.licenseURL,
+          open: state.open
+        )
+      }
     }
   }
 
-  var symbol: String {
-    switch self {
-    case .permissions:
-      return "hand.raised"
-    case .modules:
-      return "square.grid.2x2"
-    case .behavior:
-      return "switch.2"
+  private var permissionItems: [SettingsPermissionItem] {
+    SettingsPresentation.permissionItems(
+      accessibility: state.snapshot.permissions.accessibility,
+      calendar: state.snapshot.permissions.calendar,
+      preferences: modulePreferences,
+      holdAutoCaptureScreenshots: state.holdAutoCaptureScreenshots
+    )
+  }
+
+  private var modulePreferences: FlowlineModulePreferences {
+    FlowlineModulePreferences(
+      context: state.workspaceModuleEnabled,
+      music: state.musicModuleEnabled,
+      calendar: state.calendarModuleEnabled,
+      shelf: state.shelfModuleEnabled
+    )
+  }
+
+  private func moduleBinding(_ module: FlowlineModule) -> Binding<Bool> {
+    Binding(
+      get: { state.isModuleEnabled(module) },
+      set: { state.setModule(module, enabled: $0) }
+    )
+  }
+
+  private func moduleToggleIsDisabled(_ module: FlowlineModule) -> Bool {
+    !state.isModuleEnabled(module) && !state.canEnableModule(module)
+  }
+
+  private func permissionAction(for action: SettingsPermissionAction?) -> (() -> Void)? {
+    switch action {
+    case .requestAccessibility:
+      return state.requestAccessibilityPermission
+    case .requestCalendar:
+      return state.requestCalendarPermission
+    case nil:
+      return nil
     }
   }
 }
@@ -180,7 +250,7 @@ private enum SettingsTheme {
 }
 
 private struct SettingsSidebar: View {
-  @Binding var selection: SettingsCategory
+  @Binding var selection: SettingsPanelCategory
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
@@ -197,7 +267,7 @@ private struct SettingsSidebar: View {
       .padding(.top, 22)
 
       VStack(spacing: 4) {
-        ForEach(SettingsCategory.allCases) { category in
+        ForEach(SettingsPanelCategory.allCases) { category in
           Button {
             selection = category
           } label: {
@@ -256,11 +326,12 @@ private struct SettingsBlock<Content: View>: View {
 private struct PermissionHealthHeader: View {
   let title: String
   let subtitle: String
+  let isReady: Bool
 
   var body: some View {
     HStack(spacing: 12) {
       Circle()
-        .fill(title.hasPrefix("1") ? SettingsTheme.danger : SettingsTheme.success)
+        .fill(isReady ? SettingsTheme.success : SettingsTheme.danger)
         .frame(width: 9, height: 9)
 
       VStack(alignment: .leading, spacing: 2) {
@@ -331,15 +402,43 @@ private struct ModuleStatusRow: View {
         .font(SettingsTheme.monoValue)
         .foregroundStyle(SettingsTheme.secondaryText)
         .lineLimit(1)
+        .minimumScaleFactor(0.72)
     }
     .frame(minHeight: 54)
     .padding(.horizontal, 12)
   }
 }
 
+private struct AboutLinkRow: View {
+  let title: String
+  let detail: String
+  let url: URL
+  let open: (URL) -> Void
+
+  var body: some View {
+    SettingsRow(title: title) {
+      HStack(spacing: 10) {
+        Text(detail.uppercased())
+          .font(SettingsTheme.monoValue)
+          .foregroundStyle(SettingsTheme.tertiaryText)
+          .lineLimit(1)
+          .minimumScaleFactor(0.72)
+
+        Button("OPEN") {
+          open(url)
+        }
+        .buttonStyle(OutlineButtonStyle())
+        .help(url.absoluteString)
+      }
+    }
+  }
+}
+
 private struct ModuleToggleRow: View {
   let title: String
   let detail: String
+  let status: String
+  let isDisabled: Bool
   @Binding var isOn: Bool
 
   var body: some View {
@@ -358,7 +457,14 @@ private struct ModuleToggleRow: View {
 
       Spacer(minLength: 12)
 
-      SquareToggle(isOn: $isOn)
+      Text(status.uppercased())
+        .font(SettingsTheme.monoValue)
+        .foregroundStyle(isDisabled ? SettingsTheme.tertiaryText : SettingsTheme.secondaryText)
+        .frame(width: 40, alignment: .trailing)
+        .lineLimit(1)
+        .minimumScaleFactor(0.74)
+
+      SquareToggle(isOn: $isOn, isDisabled: isDisabled)
     }
     .frame(minHeight: 54)
     .padding(.horizontal, 12)
@@ -366,68 +472,55 @@ private struct ModuleToggleRow: View {
 }
 
 private struct PermissionRow: View {
-  let title: String
-  let requirement: String
-  let status: PermissionAccess
-  var deniedLabel = "Disabled"
-  let actionTitle: String
-  let action: () -> Void
+  let item: SettingsPermissionItem
+  let action: (() -> Void)?
 
   var body: some View {
-    SettingsRow(title: title) {
+    SettingsRow(title: item.title) {
       HStack(spacing: 10) {
-        Text(requirement.uppercased())
+        Text(item.requirement.uppercased())
           .font(SettingsTheme.monoValue)
           .foregroundStyle(SettingsTheme.tertiaryText)
 
         HStack(spacing: 7) {
-          Image(systemName: systemImage)
+          Image(systemName: item.symbol)
             .font(.system(size: 13, weight: .bold))
 
-          Text(label.uppercased())
+          Text(item.statusLabel.uppercased())
             .font(SettingsTheme.monoValue)
         }
         .foregroundStyle(foreground)
 
-        if status != .granted {
+        if let action, item.tone != .success {
           Button(actionTitle.uppercased(), action: action)
             .buttonStyle(OutlineButtonStyle())
-            .help("Open macOS permission prompt for \(title)")
+            .help("Open macOS permission prompt for \(item.title)")
         }
       }
     }
     .accessibilityElement(children: .combine)
   }
 
-  private var label: String {
-    switch status {
-    case .granted:
-      return "Granted"
-    case .denied:
-      return deniedLabel
-    case .notDetermined:
-      return "Not asked"
+  private var actionTitle: String {
+    guard item.statusLabel == "Not asked" else {
+      return "Open"
     }
-  }
 
-  private var systemImage: String {
-    switch status {
-    case .granted:
-      return "checkmark.circle.fill"
-    case .denied:
-      return "xmark.circle.fill"
-    case .notDetermined:
-      return "circle.dashed"
+    switch item.action {
+    case .requestCalendar:
+      return "Allow"
+    case .requestAccessibility, nil:
+      return "Open"
     }
   }
 
   private var foreground: Color {
-    switch status {
-    case .granted:
+    switch item.tone {
+    case .success:
       return SettingsTheme.success
-    case .denied:
+    case .danger:
       return SettingsTheme.danger
-    case .notDetermined:
+    case .neutral:
       return SettingsTheme.secondaryText
     }
   }
@@ -435,14 +528,19 @@ private struct PermissionRow: View {
 
 private struct SquareToggle: View {
   @Binding var isOn: Bool
+  var isDisabled = false
 
   var body: some View {
     Button {
+      guard !isDisabled else {
+        return
+      }
+
       isOn.toggle()
     } label: {
       ZStack {
         RoundedRectangle(cornerRadius: 3, style: .continuous)
-          .fill(isOn ? SettingsTheme.accent : Color.white.opacity(0.18))
+          .fill(isOn ? SettingsTheme.accent : Color.white.opacity(isDisabled ? 0.08 : 0.18))
           .frame(width: 24, height: 24)
 
         if isOn {
@@ -453,8 +551,52 @@ private struct SquareToggle: View {
       }
     }
     .buttonStyle(.plain)
+    .opacity(isDisabled ? 0.58 : 1)
     .accessibilityLabel("Toggle")
-    .accessibilityValue(isOn ? "On" : "Off")
+    .accessibilityValue(isDisabled ? "Unavailable" : (isOn ? "On" : "Off"))
+  }
+}
+
+private struct SettingsLayoutPreview: View {
+  let items: [SettingsModulePreviewItem]
+
+  var body: some View {
+    HStack(spacing: 8) {
+      ForEach(items, id: \.slot) { item in
+        SettingsPreviewSlot(item: item)
+      }
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+private struct SettingsPreviewSlot: View {
+  let item: SettingsModulePreviewItem
+
+  var body: some View {
+    VStack(spacing: 6) {
+      Image(systemName: item.symbol)
+        .font(.system(size: item.slot == .center ? 15 : 13, weight: .semibold))
+        .foregroundStyle(item.isActive ? SettingsTheme.primaryText : SettingsTheme.tertiaryText)
+
+      Text(item.title)
+        .font(SettingsTheme.monoLabel)
+        .foregroundStyle(item.isActive ? SettingsTheme.secondaryText : SettingsTheme.tertiaryText)
+        .lineLimit(1)
+        .minimumScaleFactor(0.72)
+    }
+    .frame(width: item.slot == .center ? 96 : 78, height: 56)
+    .background(Color.white.opacity(item.isActive ? 0.055 : 0.024))
+    .overlay {
+      RoundedRectangle(cornerRadius: 3, style: .continuous)
+        .stroke(
+          SettingsTheme.line,
+          style: StrokeStyle(lineWidth: 1, dash: item.isActive ? [] : [4, 4])
+        )
+    }
+    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
   }
 }
 
