@@ -32,7 +32,7 @@ enum ActionBuilder {
       actions.append(
         FlowlineAction(
           id: "clear-shelf",
-          title: "Clear",
+          title: "Clear Hold",
           systemImage: "trash",
           kind: .clearShelf
         )
