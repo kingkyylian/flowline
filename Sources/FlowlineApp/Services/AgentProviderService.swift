@@ -1,46 +1,31 @@
 import Foundation
 
 final class AgentProviderService {
-  private struct Config: Decodable {
-    var providers: [Provider]
-  }
+  private let homeDirectory: URL
+  private let environment: [String: String]
 
-  private struct Provider: Decodable {
-    var id: String
-    var enabled: Bool
+  init(
+    homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) {
+    self.homeDirectory = homeDirectory
+    self.environment = environment
   }
 
   func enabledProviders() -> [String] {
-    let url = FileManager.default
-      .homeDirectoryForCurrentUser
-      .appendingPathComponent(".codexbar/config.json")
+    var providers = ["Codex"]
 
-    guard let data = try? Data(contentsOf: url),
-          let config = try? JSONDecoder().decode(Config.self, from: data) else {
-      return ["Codex"]
+    if ClaudeUsageCredentialResolver.hasCredential(
+      homeDirectory: homeDirectory,
+      environment: environment
+    ) {
+      providers.append("Claude")
     }
 
-    let names = config.providers
-      .filter(\.enabled)
-      .map { label(for: $0.id) }
-
-    return names.isEmpty ? ["Codex"] : names
-  }
-
-  private func label(for id: String) -> String {
-    switch id {
-    case "codex":
-      return "Codex"
-    case "claude":
-      return "Claude"
-    case "gemini":
-      return "Gemini"
-    case "cursor":
-      return "Cursor"
-    case "opencode":
-      return "OpenCode"
-    default:
-      return id
+    if GeminiUsageClient.hasCredentials(homeDirectory: homeDirectory) {
+      providers.append("Gemini")
     }
+
+    return providers
   }
 }

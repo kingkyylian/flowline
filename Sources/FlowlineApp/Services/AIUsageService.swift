@@ -6,8 +6,20 @@ import Foundation
 final class AIUsageService: ObservableObject {
   @Published private(set) var snapshot: AIUsageSnapshot?
 
-  nonisolated private static let cacheFreshnessInterval: TimeInterval = 15 * 60
+  private let homeDirectory: URL
+  private let environment: [String: String]
+  private let http: any AIUsageHTTPClient
   private var timer: Timer?
+
+  init(
+    homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+    environment: [String: String] = ProcessInfo.processInfo.environment,
+    http: any AIUsageHTTPClient = URLSessionAIUsageHTTPClient()
+  ) {
+    self.homeDirectory = homeDirectory
+    self.environment = environment
+    self.http = http
+  }
 
   func start() {
     refresh()
@@ -30,46 +42,33 @@ final class AIUsageService: ObservableObject {
   }
 
   private func refresh() {
-    Task.detached {
-      let snapshot = Self.readSnapshot()
+    let homeDirectory = homeDirectory
+    let environment = environment
+    let http = http
 
-      await MainActor.run {
-        self.snapshot = snapshot
-      }
+    Task {
+      let snapshot = await Self.readSnapshot(
+        homeDirectory: homeDirectory,
+        environment: environment,
+        http: http
+      )
+
+      self.snapshot = snapshot
     }
   }
 
-  nonisolated private static func readSnapshot() -> AIUsageSnapshot? {
-    let databaseURL = FileManager.default
-      .homeDirectoryForCurrentUser
-      .appendingPathComponent("Library/Caches/com.steipete.codexbar/Cache.db")
+  nonisolated private static func readSnapshot(
+    homeDirectory: URL,
+    environment: [String: String],
+    http: any AIUsageHTTPClient
+  ) async -> AIUsageSnapshot? {
+    var providers = await AIUsageDirectReader(
+      homeDirectory: homeDirectory,
+      environment: environment,
+      http: http
+    ).readProviders()
 
-    let cacheProviders: [TimedProviderUsage]
-    if FileManager.default.fileExists(atPath: databaseURL.path) {
-      cacheProviders = [
-        readProvider(
-          from: databaseURL,
-          matching: "chatgpt.com/backend-api/wham/usage",
-          parse: CodexUsageParser.parseProvider
-        ),
-        readProvider(
-          from: databaseURL,
-          matching: "api.anthropic.com/api/oauth/usage",
-          parse: ClaudeUsageParser.parse
-        ),
-        readProvider(
-          from: databaseURL,
-          matching: "cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota",
-          parse: GeminiUsageParser.parse
-        )
-      ].compactMap { $0 }
-    } else {
-      cacheProviders = []
-    }
-
-    var providers = cacheProviders
-
-    if let codexUsage = readCodexProviderFromSessionLogs() {
+    if let codexUsage = readCodexProviderFromSessionLogs(homeDirectory: homeDirectory) {
       providers.removeAll { $0.usage.provider == .codex }
       providers.append(codexUsage)
     }
@@ -84,56 +83,8 @@ final class AIUsageService: ObservableObject {
     )
   }
 
-  nonisolated private static func readProvider(
-    from databaseURL: URL,
-    matching requestKeyPattern: String,
-    parse: (Data) throws -> AIProviderUsage
-  ) -> TimedProviderUsage? {
-    let query = """
-      select r.time_stamp as timeStamp, d.receiver_data as data
-      from cfurl_cache_response r
-      join cfurl_cache_receiver_data d using(entry_ID)
-      where r.request_key like '%\(requestKeyPattern)%'
-      order by r.time_stamp desc
-      limit 1;
-      """
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
-    process.arguments = ["-json", databaseURL.path, query]
-
-    let output = Pipe()
-    process.standardOutput = output
-    process.standardError = Pipe()
-
-    do {
-      try process.run()
-      process.waitUntilExit()
-    } catch {
-      return nil
-    }
-
-    guard process.terminationStatus == 0 else {
-      return nil
-    }
-
-    let outputData = output.fileHandleForReading.readDataToEndOfFile()
-    guard
-      let row = try? JSONDecoder().decode([CacheRow].self, from: outputData).first,
-      let recordedAt = cacheDate(from: row.timeStamp),
-      abs(Date().timeIntervalSince(recordedAt)) <= cacheFreshnessInterval,
-      let data = row.data.data(using: .utf8),
-      let usage = try? parse(data)
-    else {
-      return nil
-    }
-
-    return TimedProviderUsage(usage: usage, recordedAt: recordedAt)
-  }
-
-  nonisolated private static func readCodexProviderFromSessionLogs() -> TimedProviderUsage? {
-    let sessionsURL = FileManager.default
-      .homeDirectoryForCurrentUser
-      .appendingPathComponent(".codex/sessions")
+  nonisolated private static func readCodexProviderFromSessionLogs(homeDirectory: URL) -> TimedProviderUsage? {
+    let sessionsURL = homeDirectory.appendingPathComponent(".codex/sessions")
 
     guard let enumerator = FileManager.default.enumerator(
       at: sessionsURL,
@@ -178,13 +129,6 @@ final class AIUsageService: ObservableObject {
     return nil
   }
 
-  nonisolated private static func cacheDate(from value: String) -> Date? {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-    return formatter.date(from: value)
-  }
-
   nonisolated private static func sessionEventDate(from data: Data) -> Date? {
     guard
       let event = try? JSONDecoder().decode(SessionTimestamp.self, from: data),
@@ -200,16 +144,6 @@ final class AIUsageService: ObservableObject {
     plainFormatter.formatOptions = [.withInternetDateTime]
 
     return fractionalFormatter.date(from: timestamp) ?? plainFormatter.date(from: timestamp)
-  }
-
-  private struct TimedProviderUsage {
-    var usage: AIProviderUsage
-    var recordedAt: Date
-  }
-
-  private struct CacheRow: Decodable {
-    var timeStamp: String
-    var data: String
   }
 
   private struct SessionTimestamp: Decodable {
