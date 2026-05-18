@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import FlowlineCore
 
-@Test func buildsContextSummaryWithGitUsageAndShelf() {
+@Test func buildsContextSummaryWithGitUsageAndHold() {
   let snapshot = ContextSnapshot(
     activeApp: ActiveAppContext(
       name: "Terminal",
@@ -34,6 +34,19 @@ import Testing
     Window: flowline
     Git: main dirty
     Codex: Session 61% left, Weekly 78% left
-    Shelf: README.md
+    Hold: README.md
     """)
+}
+
+@Test func contextSummaryMasksSensitiveHoldItems() {
+  let secret = "A9x!kL4#pQ7$vN2"
+  var snapshot = ContextSnapshot.empty
+  snapshot.shelfItems = [
+    ShelfItem(kind: .sensitive, title: "Sensitive clip", value: secret, url: nil)
+  ]
+
+  let summary = ContextSummaryBuilder.build(snapshot: snapshot, aiUsage: nil)
+
+  #expect(summary.contains("Hold: Sensitive clip"))
+  #expect(!summary.contains(secret))
 }

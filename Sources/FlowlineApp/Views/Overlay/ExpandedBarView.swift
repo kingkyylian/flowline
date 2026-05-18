@@ -653,6 +653,12 @@ private struct NotchShelfRow: View {
       return "link"
     case .file:
       return "doc"
+    case .code:
+      return "chevron.left.forwardslash.chevron.right"
+    case .screenshot:
+      return "camera.viewfinder"
+    case .sensitive:
+      return "lock"
     }
   }
 }
@@ -840,6 +846,12 @@ private struct ShelfPanel: View {
       return "link"
     case .file:
       return "doc"
+    case .code:
+      return "chevron.left.forwardslash.chevron.right"
+    case .screenshot:
+      return "camera.viewfinder"
+    case .sensitive:
+      return "lock"
     }
   }
 }

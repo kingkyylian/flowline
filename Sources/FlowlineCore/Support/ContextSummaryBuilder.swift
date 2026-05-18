@@ -30,7 +30,7 @@ public enum ContextSummaryBuilder {
     }
 
     if !snapshot.shelfItems.isEmpty {
-      lines.append("Shelf: \(snapshot.shelfItems.map(\.title).joined(separator: ", "))")
+      lines.append("Hold: \(snapshot.shelfItems.map(\.title).joined(separator: ", "))")
     }
 
     return lines.joined(separator: "\n")
