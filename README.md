@@ -1,6 +1,17 @@
 # Flowline
 
-Flowline is a local-first macOS context layer for developer workflows. It sits at the top edge of the screen and changes with the active app, current developer context, next calendar event, and temporary shelf items.
+[![CI](https://github.com/kingkyylian/flowline/actions/workflows/ci.yml/badge.svg)](https://github.com/kingkyylian/flowline/actions/workflows/ci.yml)
+![Swift](https://img.shields.io/badge/swift-6.0-orange.svg)
+![macOS](https://img.shields.io/badge/macos-14%2B-black.svg)
+![Status](https://img.shields.io/badge/status-early%20preview-6b7280.svg)
+
+Flowline is a local-first macOS context layer for developer workflows. It sits at the top edge of the screen and changes with the active app, current developer context, next calendar event, music state, and temporary shelf items.
+
+Flowline is an early preview. The MVP is usable from source, but there is no public binary release, Homebrew cask, or stable plugin API yet.
+
+## Why This Exists
+
+Developer work already has context: the app in focus, the branch you are on, the next meeting, the music you paused, and the temporary links or files you need for the next task. Flowline keeps that context local and visible without sending it to a cloud dashboard.
 
 ## MVP
 
@@ -12,6 +23,26 @@ Flowline is a local-first macOS context layer for developer workflows. It sits a
 - Optional Calendar Next with local EventKit access and meeting URL detection.
 - Session-only Shelf for copied text, links, and dropped files.
 - Settings for privacy permissions, overlay modules, launch behavior, and fullscreen behavior.
+
+## Quick Start
+
+Build and launch the local debug app:
+
+```bash
+./script/build_and_run.sh
+```
+
+Verify launch:
+
+```bash
+./script/build_and_run.sh --verify
+```
+
+Run the Swift package tests:
+
+```bash
+swift test
+```
 
 ## Privacy
 
@@ -25,17 +56,11 @@ Flowline is local-first:
 - Accessibility access is optional and only used for active window context.
 - Music metadata uses local Apple Events for Spotify/Music; macOS may ask for Automation permission the first time it reads now-playing details.
 
-## Build
+## Architecture Notes
 
-```bash
-./script/build_and_run.sh
-```
-
-Verify launch:
-
-```bash
-./script/build_and_run.sh --verify
-```
+- `FlowlineCore` owns deterministic models, parsers, URL detection, git status parsing, shelf state, and display geometry.
+- `FlowlineApp` owns the SwiftUI/AppKit overlay, permission surfaces, local macOS integrations, settings, and module presentation.
+- Tests cover the core parsers, presentation helpers, permission surfaces, shelf behavior, layout calculations, and local service boundaries.
 
 For stable macOS Accessibility permissions during local development, sign with a stable code-signing identity:
 
@@ -80,6 +105,7 @@ See `docs/RELEASE.md` for notarization and manual QA checks.
 
 ## Roadmap
 
+- First signed preview release with CI-backed build/test evidence.
 - Capsule-style static modules for Codex, Claude, GitHub, Linear, and design workflows.
 - Plugin SDK after the native MVP is stable.
 - GitHub release and Homebrew cask distribution.
