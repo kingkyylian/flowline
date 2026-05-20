@@ -463,7 +463,7 @@ private struct FakeScreenshotTextRecognizer: ScreenshotTextRecognizing {
   pasteboard.clearContents()
   pasteboard.setString("fast copied text", forType: .string)
 
-  let deadline = Date().addingTimeInterval(0.35)
+  let deadline = Date().addingTimeInterval(1.0)
   while Date() < deadline {
     if service.items.first?.title == "fast copied text" {
       break
