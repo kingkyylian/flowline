@@ -32,6 +32,16 @@ import Testing
   #expect(workflow.contains("script/publish_preflight.sh"))
 }
 
+@Test func ciUsesNode24CompatibleCheckoutAction() throws {
+  let workflow = try String(
+    contentsOfFile: ".github/workflows/ci.yml",
+    encoding: .utf8
+  )
+
+  #expect(workflow.contains("actions/checkout@v5"))
+  #expect(!workflow.contains("actions/checkout@v4"))
+}
+
 @Test func ciAvoidsProductionCompilerRejectedIsolatedDeinitFlags() throws {
   let workflow = try String(
     contentsOfFile: ".github/workflows/ci.yml",
