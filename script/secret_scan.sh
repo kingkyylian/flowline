@@ -36,7 +36,7 @@ scan_worktree_pattern() {
   local pattern="$2"
   local output
 
-  if output="$(rg --hidden --no-ignore --glob '!.git/**' --glob '!dist/**' --glob '!.build/**' -n "$pattern" .)"; then
+  if output="$(rg --hidden --no-ignore --glob '!.git/**' --glob '!dist/**' --glob '!.build/**' -l "$pattern" .)"; then
     echo "error: $label detected" >&2
     echo "$output" >&2
     exit 2
@@ -52,7 +52,7 @@ scan_history_pattern() {
   revisions="$(git rev-list --all 2>/dev/null || true)"
   guard_nonempty "$revisions" || return 0
 
-  if output="$(git grep -I -n -E "$pattern" $revisions -- . ':(exclude).git' ':(exclude)dist' ':(exclude).build')"; then
+  if output="$(git grep -I -l -E "$pattern" $revisions -- . ':(exclude).git' ':(exclude)dist' ':(exclude).build')"; then
     echo "error: $label detected in git history" >&2
     echo "$output" >&2
     exit 2

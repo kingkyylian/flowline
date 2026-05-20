@@ -128,6 +128,7 @@ import Testing
   #expect(result.status == 2)
   #expect(result.output.contains("possible Google OAuth client secret"))
   #expect(result.output.contains("Probe.swift"))
+  #expect(!result.output.contains(googleOAuthSecret))
 }
 
 @Test func secretScanRejectsGoogleOAuthClientSecretsInIgnoredFilesBeforePublish() throws {
@@ -146,6 +147,7 @@ import Testing
   #expect(result.status == 2)
   #expect(result.output.contains("possible Google OAuth client secret"))
   #expect(result.output.contains(".env"))
+  #expect(!result.output.contains(googleOAuthSecret))
 }
 
 @Test func secretScanRejectsGoogleOAuthClientIDsBeforePublish() throws {
@@ -161,6 +163,7 @@ import Testing
   #expect(result.status == 2)
   #expect(result.output.contains("possible Google OAuth client ID"))
   #expect(result.output.contains("Probe.swift"))
+  #expect(!result.output.contains(googleOAuthClientID))
 }
 
 @Test func secretScanRejectsSecretsInReachableGitHistoryBeforePublish() throws {
@@ -189,6 +192,7 @@ import Testing
   #expect(result.status == 2)
   #expect(result.output.contains("possible Google OAuth client secret"))
   #expect(result.output.contains("Probe.swift"))
+  #expect(!result.output.contains(googleOAuthSecret))
 }
 
 private struct ProcessResult {
