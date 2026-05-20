@@ -28,7 +28,7 @@ jobs:
         run: script/publish_preflight.sh
 
       - name: Build
-        run: swift build -Xswiftc -Xfrontend -Xswiftc -enable-experimental-feature -Xswiftc -Xfrontend -Xswiftc IsolatedDeinit
+        run: swift build
 
       - name: Test
-        run: swift test -Xswiftc -Xfrontend -Xswiftc -enable-experimental-feature -Xswiftc -Xfrontend -Xswiftc IsolatedDeinit
+        run: swift test

@@ -127,13 +127,15 @@ final class AppState: ObservableObject {
     self.shelfService = shelfService
   }
 
-  isolated deinit {
-    permissionRefreshTask?.cancel()
-    activeAppMonitor.stop()
-    calendarService.stop()
-    shelfService.stop()
-    aiUsageService.stop()
-    musicService.stop()
+  deinit {
+    MainActor.assumeIsolated {
+      permissionRefreshTask?.cancel()
+      activeAppMonitor.stop()
+      calendarService.stop()
+      shelfService.stop()
+      aiUsageService.stop()
+      musicService.stop()
+    }
   }
 
   func start() {

@@ -36,8 +36,10 @@ final class CalendarService: ObservableObject {
     timer = nil
   }
 
-  isolated deinit {
-    timer?.invalidate()
+  deinit {
+    MainActor.assumeIsolated {
+      timer?.invalidate()
+    }
   }
 
   func requestAccess() {

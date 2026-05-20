@@ -32,6 +32,28 @@ import Testing
   #expect(workflow.contains("script/publish_preflight.sh"))
 }
 
+@Test func ciAvoidsProductionCompilerRejectedIsolatedDeinitFlags() throws {
+  let workflow = try String(
+    contentsOfFile: ".github/workflows/ci.yml",
+    encoding: .utf8
+  )
+  let isolatedDeinitSources = [
+    "Sources/FlowlineApp/App/OverlayController.swift",
+    "Sources/FlowlineApp/Services/ActiveAppMonitor.swift",
+    "Sources/FlowlineApp/Services/CalendarService.swift",
+    "Sources/FlowlineApp/Services/MusicControlService.swift",
+    "Sources/FlowlineApp/Services/ShelfService.swift",
+    "Sources/FlowlineApp/Stores/AppState.swift"
+  ]
+
+  #expect(!workflow.contains("enable-experimental-feature"))
+  #expect(!workflow.contains("IsolatedDeinit"))
+  for path in isolatedDeinitSources {
+    let source = try String(contentsOfFile: path, encoding: .utf8)
+    #expect(!source.contains("isolated deinit"))
+  }
+}
+
 @Test func releasePreflightFailsBeforeBuildWhenDeveloperIDIdentityIsMissing() throws {
   let process = Process()
   process.executableURL = URL(fileURLWithPath: "/usr/bin/env")

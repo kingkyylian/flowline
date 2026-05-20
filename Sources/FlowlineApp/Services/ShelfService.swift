@@ -87,12 +87,14 @@ final class ShelfService: ObservableObject {
     canCaptureUnseenScreenshotsBeforeCutoff = false
   }
 
-  isolated deinit {
-    pasteboardTimer?.invalidate()
-    screenshotPollTimer?.invalidate()
-    screenshotDirectoryWatchers.forEach { $0.cancel() }
-    screenshotEventRescanTasks.forEach { $0.cancel() }
-    screenshotOCRTasks.values.forEach { $0.cancel() }
+  deinit {
+    MainActor.assumeIsolated {
+      pasteboardTimer?.invalidate()
+      screenshotPollTimer?.invalidate()
+      screenshotDirectoryWatchers.forEach { $0.cancel() }
+      screenshotEventRescanTasks.forEach { $0.cancel() }
+      screenshotOCRTasks.values.forEach { $0.cancel() }
+    }
   }
 
   func addFiles(_ urls: [URL]) {

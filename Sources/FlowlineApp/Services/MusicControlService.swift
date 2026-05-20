@@ -38,10 +38,12 @@ final class MusicControlService: ObservableObject {
     commandRefreshTask = nil
   }
 
-  isolated deinit {
-    timer?.invalidate()
-    refreshTask?.cancel()
-    commandRefreshTask?.cancel()
+  deinit {
+    MainActor.assumeIsolated {
+      timer?.invalidate()
+      refreshTask?.cancel()
+      commandRefreshTask?.cancel()
+    }
   }
 
   func previousTrack() {

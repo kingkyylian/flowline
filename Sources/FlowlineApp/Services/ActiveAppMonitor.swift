@@ -49,10 +49,12 @@ final class ActiveAppMonitor: ObservableObject {
     observers.removeAll()
   }
 
-  isolated deinit {
-    timer?.invalidate()
-    observers.forEach {
-      NSWorkspace.shared.notificationCenter.removeObserver($0)
+  deinit {
+    MainActor.assumeIsolated {
+      timer?.invalidate()
+      observers.forEach {
+        NSWorkspace.shared.notificationCenter.removeObserver($0)
+      }
     }
   }
 

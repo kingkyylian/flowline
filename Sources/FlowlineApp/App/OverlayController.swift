@@ -66,19 +66,21 @@ final class OverlayController {
     }
   }
 
-  isolated deinit {
-    if let screenObserver {
-      NotificationCenter.default.removeObserver(screenObserver)
-    }
+  deinit {
+    MainActor.assumeIsolated {
+      if let screenObserver {
+        NotificationCenter.default.removeObserver(screenObserver)
+      }
 
-    if let mouseMonitor {
-      NSEvent.removeMonitor(mouseMonitor)
-    }
-    if let collapsedHoverGlobalMonitor {
-      NSEvent.removeMonitor(collapsedHoverGlobalMonitor)
-    }
-    if let collapsedHoverLocalMonitor {
-      NSEvent.removeMonitor(collapsedHoverLocalMonitor)
+      if let mouseMonitor {
+        NSEvent.removeMonitor(mouseMonitor)
+      }
+      if let collapsedHoverGlobalMonitor {
+        NSEvent.removeMonitor(collapsedHoverGlobalMonitor)
+      }
+      if let collapsedHoverLocalMonitor {
+        NSEvent.removeMonitor(collapsedHoverLocalMonitor)
+      }
     }
   }
 
