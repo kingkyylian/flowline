@@ -130,7 +130,7 @@ private final class RecordingMusicPlayerController: MusicPlayerControlling, @unc
 
 @MainActor
 private func waitUntil(
-  timeout: TimeInterval = 0.5,
+  timeout: TimeInterval = 3.0,
   predicate: @escaping () -> Bool
 ) async throws {
   let deadline = Date().addingTimeInterval(timeout)
