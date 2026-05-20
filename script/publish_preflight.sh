@@ -68,7 +68,7 @@ origin_url="$(git remote get-url origin 2>/dev/null)" || fail "git remote origin
 repo="$(github_repo_from_url "$origin_url")" || fail "origin remote is not a GitHub URL: $origin_url"
 
 command -v gh >/dev/null 2>&1 || fail "GitHub CLI is required for publish preflight"
-gh repo view "$repo" --json nameWithOwner,url >/dev/null 2>&1 \
+gh repo view "$repo" --json nameWithOwner,url --jq .nameWithOwner \
   || fail "GitHub repository is not reachable: $repo"
 
 echo "Publish preflight passed for $repo"
