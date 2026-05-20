@@ -272,12 +272,15 @@ struct GeminiUsageClient {
       return token
     }
 
-    guard let refreshToken = credentials.refreshToken else {
+    guard
+      let refreshToken = credentials.refreshToken,
+      let oauthClient = GeminiOAuthClientConfiguration(environment: environment)
+    else {
       return nil
     }
 
     do {
-      let request = Self.tokenRefreshRequest(refreshToken: refreshToken)
+      let request = Self.tokenRefreshRequest(refreshToken: refreshToken, oauthClient: oauthClient)
       let (data, _) = try await http.data(for: request)
       let response = try JSONDecoder().decode(GeminiOAuthRefreshResponse.self, from: data)
 
@@ -298,13 +301,16 @@ struct GeminiUsageClient {
     }
   }
 
-  static func tokenRefreshRequest(refreshToken: String) -> URLRequest {
+  static func tokenRefreshRequest(
+    refreshToken: String,
+    oauthClient: GeminiOAuthClientConfiguration
+  ) -> URLRequest {
     var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
     request.httpMethod = "POST"
     request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
     let fields = [
-      "client_id": "GEMINI_OAUTH_CLIENT_ID_REQUIRED",
-      "client_secret": "GEMINI_OAUTH_CLIENT_SECRET_REQUIRED",
+      "client_id": oauthClient.clientID,
+      "client_secret": oauthClient.clientSecret,
       "refresh_token": refreshToken,
       "grant_type": "refresh_token"
     ]
@@ -337,6 +343,30 @@ struct GeminiUsageClient {
     var allowed = CharacterSet.urlQueryAllowed
     allowed.remove(charactersIn: "&+=")
     return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+  }
+}
+
+struct GeminiOAuthClientConfiguration: Sendable {
+  var clientID: String
+  var clientSecret: String
+
+  init?(environment: [String: String] = ProcessInfo.processInfo.environment) {
+    guard
+      let clientID = Self.nonEmpty(environment["GEMINI_OAUTH_CLIENT_ID"]),
+      let clientSecret = Self.nonEmpty(environment["GEMINI_OAUTH_CLIENT_SECRET"])
+    else {
+      return nil
+    }
+
+    self.clientID = clientID
+    self.clientSecret = clientSecret
+  }
+
+  private static func nonEmpty(_ value: String?) -> String? {
+    guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+      return nil
+    }
+    return value
   }
 }
 

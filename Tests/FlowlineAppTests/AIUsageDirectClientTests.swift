@@ -54,6 +54,10 @@ import Testing
   ])
   let client = GeminiUsageClient(
     homeDirectory: home,
+    environment: [
+      "GEMINI_OAUTH_CLIENT_ID": "test-client-id",
+      "GEMINI_OAUTH_CLIENT_SECRET": "test-client-secret"
+    ],
     http: http,
     now: { Date(timeIntervalSince1970: 1_778_000_000) }
   )
@@ -70,9 +74,62 @@ import Testing
   #expect(http.requests[1].value(forHTTPHeaderField: "Authorization") == "Bearer fresh-token")
   #expect(http.requests[2].value(forHTTPHeaderField: "Authorization") == "Bearer fresh-token")
 
+  let refreshBody = try #require(http.requests[0].httpBody)
+  let refreshPayload = String(data: refreshBody, encoding: .utf8)
+  #expect(refreshPayload?.contains("client_id=test-client-id") == true)
+  #expect(refreshPayload?.contains("client_secret=test-client-secret") == true)
+
   let body = try #require(http.requests[2].httpBody)
   let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: String])
   #expect(payload["project"] == "server-project")
+}
+
+@Test func geminiUsageClientDoesNotRefreshExpiredCredentialsWithoutOAuthClientConfig() async throws {
+  let home = try temporaryDirectory()
+  try writeJSON(
+    """
+      {
+        "expiry_date": 1000,
+        "access_token": "stale-token",
+        "refresh_token": "refresh-token",
+        "token_type": "Bearer"
+      }
+      """,
+    to: home.appendingPathComponent(".gemini/oauth_creds.json")
+  )
+  let http = RecordingAIUsageHTTPClient(responses: [
+    """
+      {
+        "access_token": "fresh-token",
+        "expires_in": 3600,
+        "token_type": "Bearer"
+      }
+      """.data(using: .utf8)!,
+    """
+      {
+        "cloudaicompanionProject": "server-project",
+        "currentTier": {
+          "id": "free-tier"
+        }
+      }
+      """.data(using: .utf8)!,
+    """
+      {
+        "buckets": []
+      }
+      """.data(using: .utf8)!
+  ])
+  let client = GeminiUsageClient(
+    homeDirectory: home,
+    environment: [:],
+    http: http,
+    now: { Date(timeIntervalSince1970: 1_778_000_000) }
+  )
+
+  let usage = await client.readUsage()
+
+  #expect(usage == nil)
+  #expect(http.requests.isEmpty)
 }
 
 @Test func claudeUsageClientUsesLocalTokenInsteadOfCodexBarCache() async throws {
