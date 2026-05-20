@@ -43,6 +43,48 @@ import Testing
   #expect(output.contains("Developer ID Application identity is not installed"))
 }
 
+@Test func notarizeReleaseFailsBeforeBuildWhenNotaryCredentialsAreMissing() throws {
+  let fakeBin = try temporaryDirectory()
+  let buildMarker = fakeBin.appendingPathComponent("swift-was-called")
+  let identity = "Developer ID Application: Flowline Test (TEAM123456)"
+
+  let fakeSecurity = fakeBin.appendingPathComponent("security")
+  try """
+  #!/usr/bin/env bash
+  echo '  1) ABCDEF123456 "\(identity)"'
+  """.write(to: fakeSecurity, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSecurity.path)
+
+  let fakeSwift = fakeBin.appendingPathComponent("swift")
+  try """
+  #!/usr/bin/env bash
+  touch "\(buildMarker.path)"
+  echo "swift build should not run before notary credentials are validated" >&2
+  exit 77
+  """.write(to: fakeSwift, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSwift.path)
+
+  let process = Process()
+  process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+  process.arguments = ["bash", "script/package_release.sh", "--notarize"]
+  process.environment = [
+    "PATH": "\(fakeBin.path):/usr/bin:/bin:/usr/sbin:/sbin",
+    "FLOWLINE_DEVELOPER_ID_IDENTITY": identity
+  ]
+
+  let outputPipe = Pipe()
+  process.standardOutput = outputPipe
+  process.standardError = outputPipe
+
+  try process.run()
+  process.waitUntilExit()
+
+  let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+  #expect(process.terminationStatus == 2)
+  #expect(output.contains("notarization requires FLOWLINE_NOTARY_PROFILE or Apple ID credentials"))
+  #expect(!FileManager.default.fileExists(atPath: buildMarker.path))
+}
+
 @Test func publishPreflightFailsWhenOriginRemoteIsMissing() throws {
   let repository = try temporaryGitRepository()
 

@@ -50,6 +50,18 @@ require_developer_id_identity() {
   fi
 }
 
+notary_credentials_are_configured() {
+  [[ -n "${FLOWLINE_NOTARY_PROFILE:-}" ]] \
+    || [[ -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]
+}
+
+require_notary_credentials() {
+  if ! notary_credentials_are_configured; then
+    echo "error: notarization requires FLOWLINE_NOTARY_PROFILE or Apple ID credentials." >&2
+    exit 2
+  fi
+}
+
 case "$MODE" in
   --preflight|--archive|--notarize)
     ;;
@@ -68,6 +80,10 @@ require_developer_id_identity
 if [[ ! -f "$ICON_PATH" ]]; then
   echo "error: missing app icon at $ICON_PATH. Run script/generate_app_icon.sh first." >&2
   exit 2
+fi
+
+if [[ "$MODE" == "--notarize" ]]; then
+  require_notary_credentials
 fi
 
 if [[ "$MODE" == "--preflight" ]]; then

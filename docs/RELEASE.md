@@ -32,6 +32,9 @@ FLOWLINE_NOTARY_PROFILE="flowline-notary" \
   script/package_release.sh --notarize
 ```
 
+`--notarize` validates both the Developer ID identity and notary credentials
+before starting the release build.
+
 Validate the shipped app:
 
 ```bash
