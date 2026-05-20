@@ -51,6 +51,12 @@ Run tests:
 swift test
 ```
 
+Check publish readiness before pushing:
+
+```bash
+script/publish_preflight.sh
+```
+
 ## Release
 
 Local debug bundles are built with `script/build_and_run.sh`. Distributable
