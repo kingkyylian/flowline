@@ -127,6 +127,58 @@ import Testing
   #expect(!FileManager.default.fileExists(atPath: buildMarker.path))
 }
 
+@Test func releasePackagingRejectsInvalidMetadataBeforeBuild() throws {
+  let probes = [
+    (variable: "FLOWLINE_BUNDLE_ID", value: "dev.kyylian.flowline<bad>"),
+    (variable: "FLOWLINE_VERSION", value: "1.0<bad>"),
+    (variable: "FLOWLINE_BUILD", value: "1&bad")
+  ]
+
+  for probe in probes {
+    let fakeBin = try temporaryDirectory()
+    let buildMarker = fakeBin.appendingPathComponent("swift-was-called")
+    let identity = "Developer ID Application: Flowline Test (TEAM123456)"
+
+    let fakeSecurity = fakeBin.appendingPathComponent("security")
+    try """
+    #!/usr/bin/env bash
+    echo '  1) ABCDEF123456 "\(identity)"'
+    """.write(to: fakeSecurity, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSecurity.path)
+
+    let fakeSwift = fakeBin.appendingPathComponent("swift")
+    try """
+    #!/usr/bin/env bash
+    touch "\(buildMarker.path)"
+    echo "swift build should not run before release metadata is validated" >&2
+    exit 77
+    """.write(to: fakeSwift, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSwift.path)
+
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["bash", "script/package_release.sh", "--archive"]
+    var environment = [
+      "PATH": "\(fakeBin.path):/usr/bin:/bin:/usr/sbin:/sbin",
+      "FLOWLINE_DEVELOPER_ID_IDENTITY": identity
+    ]
+    environment[probe.variable] = probe.value
+    process.environment = environment
+
+    let outputPipe = Pipe()
+    process.standardOutput = outputPipe
+    process.standardError = outputPipe
+
+    try process.run()
+    process.waitUntilExit()
+
+    let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+    #expect(process.terminationStatus == 2)
+    #expect(output.contains("\(probe.variable) is invalid"))
+    #expect(!FileManager.default.fileExists(atPath: buildMarker.path))
+  }
+}
+
 @Test func publishPreflightFailsWhenOriginRemoteIsMissing() throws {
   let repository = try temporaryGitRepository()
 

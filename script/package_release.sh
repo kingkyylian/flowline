@@ -22,9 +22,9 @@ Usage:
   FLOWLINE_DEVELOPER_ID_IDENTITY="Developer ID Application: Name (TEAMID)" script/package_release.sh [--preflight|--archive|--notarize]
 
 Optional:
-  FLOWLINE_BUNDLE_ID=dev.kyylian.flowline
-  FLOWLINE_VERSION=0.1.0
-  FLOWLINE_BUILD=1
+  FLOWLINE_BUNDLE_ID=dev.kyylian.flowline   # reverse-DNS identifier
+  FLOWLINE_VERSION=0.1.0                    # one to three dot-separated integers
+  FLOWLINE_BUILD=1                          # one to three dot-separated integers
   FLOWLINE_NOTARY_PROFILE=notarytool-profile
 
 For --notarize, set FLOWLINE_NOTARY_PROFILE or provide APPLE_ID, APPLE_TEAM_ID,
@@ -62,6 +62,29 @@ require_notary_credentials() {
   fi
 }
 
+require_release_metadata() {
+  local bundle_id_regex='^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$'
+  local version_regex='^[0-9]+(\.[0-9]+){0,2}$'
+
+  if [[ ! "$BUNDLE_ID" =~ $bundle_id_regex ]]; then
+    echo "error: FLOWLINE_BUNDLE_ID is invalid: $BUNDLE_ID" >&2
+    echo "       Use a reverse-DNS identifier with letters, numbers, hyphens, and dots, for example dev.kyylian.flowline." >&2
+    exit 2
+  fi
+
+  if [[ ! "$VERSION" =~ $version_regex ]]; then
+    echo "error: FLOWLINE_VERSION is invalid: $VERSION" >&2
+    echo "       Use one to three dot-separated integers, for example 0.1.0." >&2
+    exit 2
+  fi
+
+  if [[ ! "$BUILD_NUMBER" =~ $version_regex ]]; then
+    echo "error: FLOWLINE_BUILD is invalid: $BUILD_NUMBER" >&2
+    echo "       Use one to three dot-separated integers, for example 1." >&2
+    exit 2
+  fi
+}
+
 case "$MODE" in
   --preflight|--archive|--notarize)
     ;;
@@ -76,6 +99,7 @@ case "$MODE" in
 esac
 
 require_developer_id_identity
+require_release_metadata
 
 if [[ ! -f "$ICON_PATH" ]]; then
   echo "error: missing app icon at $ICON_PATH. Run script/generate_app_icon.sh first." >&2
