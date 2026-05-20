@@ -292,6 +292,138 @@ import Testing
   #expect(plist?["LSUIElement"] as? Bool == true)
 }
 
+@Test func notarizedReleaseAssessesStapledBundleBeforeFinalZip() throws {
+  let project = try temporaryDirectory()
+  let fakeBin = try temporaryDirectory()
+  let scriptDirectory = project.appendingPathComponent("script", isDirectory: true)
+  let resourcesDirectory = project.appendingPathComponent("Resources", isDirectory: true)
+  try FileManager.default.createDirectory(at: scriptDirectory, withIntermediateDirectories: true)
+  try FileManager.default.createDirectory(at: resourcesDirectory, withIntermediateDirectories: true)
+
+  let sourceScript = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    .appendingPathComponent("script/package_release.sh")
+  let packageScript = scriptDirectory.appendingPathComponent("package_release.sh")
+  try FileManager.default.copyItem(at: sourceScript, to: packageScript)
+  try Data([0x69, 0x63, 0x6e, 0x73]).write(
+    to: resourcesDirectory.appendingPathComponent("Flowline.icns")
+  )
+
+  let identity = "Developer ID Application: Flowline Test (TEAM123456)"
+  let version = "2.0.0"
+  let notaryProfile = "flowline-notary-test"
+  let eventsMarker = fakeBin.appendingPathComponent("release-events")
+  let bundle = project.appendingPathComponent("dist/release/Flowline.app", isDirectory: true)
+  let zipPath = project.appendingPathComponent("dist/release/Flowline-\(version).zip")
+
+  let fakeSecurity = fakeBin.appendingPathComponent("security")
+  try """
+  #!/usr/bin/env bash
+  echo '  1) ABCDEF123456 "\(identity)"'
+  """.write(to: fakeSecurity, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSecurity.path)
+
+  let fakeSwift = fakeBin.appendingPathComponent("swift")
+  try """
+  #!/usr/bin/env bash
+  mkdir -p .build/release
+  printf '#!/usr/bin/env bash\\n' > .build/release/Flowline
+  chmod +x .build/release/Flowline
+  """.write(to: fakeSwift, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSwift.path)
+
+  let fakePlutil = fakeBin.appendingPathComponent("plutil")
+  try """
+  #!/usr/bin/env bash
+  test "$1" = "-lint"
+  test -f "$2"
+  """.write(to: fakePlutil, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakePlutil.path)
+
+  let fakeCodesign = fakeBin.appendingPathComponent("codesign")
+  try """
+  #!/usr/bin/env bash
+  exit 0
+  """.write(to: fakeCodesign, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeCodesign.path)
+
+  let fakeDitto = fakeBin.appendingPathComponent("ditto")
+  try """
+  #!/usr/bin/env bash
+  destination=""
+  for arg in "$@"; do destination="$arg"; done
+  printf 'ditto %s\\n' "$destination" >> "\(eventsMarker.path)"
+  touch "$destination"
+  """.write(to: fakeDitto, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeDitto.path)
+
+  let fakeXcrun = fakeBin.appendingPathComponent("xcrun")
+  try """
+  #!/usr/bin/env bash
+  printf 'xcrun %s\\n' "$*" >> "\(eventsMarker.path)"
+  if [[ "$1" == "notarytool" ]]; then
+    test "$2" = "submit"
+    test "$3" = "\(zipPath.path)"
+    test "$4" = "--keychain-profile"
+    test "$5" = "\(notaryProfile)"
+    test "$6" = "--wait"
+    test -f "$3"
+  elif [[ "$1" == "stapler" ]]; then
+    test "$2" = "staple"
+    test "$3" = "\(bundle.path)"
+    test -d "$3"
+  else
+    exit 88
+  fi
+  """.write(to: fakeXcrun, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeXcrun.path)
+
+  let fakeSpctl = fakeBin.appendingPathComponent("spctl")
+  try """
+  #!/usr/bin/env bash
+  printf 'spctl %s\\n' "$*" >> "\(eventsMarker.path)"
+  test "$1" = "--assess"
+  test "$2" = "--type"
+  test "$3" = "execute"
+  test "$4" = "--verbose"
+  test "$5" = "\(bundle.path)"
+  test -d "$5"
+  """.write(to: fakeSpctl, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSpctl.path)
+
+  let process = Process()
+  process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+  process.arguments = ["bash", packageScript.path, "--notarize"]
+  process.currentDirectoryURL = project
+  process.environment = [
+    "PATH": "\(fakeBin.path):/usr/bin:/bin:/usr/sbin:/sbin",
+    "FLOWLINE_DEVELOPER_ID_IDENTITY": identity,
+    "FLOWLINE_VERSION": version,
+    "FLOWLINE_NOTARY_PROFILE": notaryProfile
+  ]
+
+  let outputPipe = Pipe()
+  process.standardOutput = outputPipe
+  process.standardError = outputPipe
+
+  try process.run()
+  process.waitUntilExit()
+
+  let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+  let events = try String(contentsOf: eventsMarker, encoding: .utf8)
+  let eventLines = events.split(separator: "\n").map(String.init)
+
+  #expect(process.terminationStatus == 0)
+  #expect(output.contains("Release archive: \(zipPath.path)"))
+  #expect(eventLines == [
+    "ditto \(zipPath.path)",
+    "xcrun notarytool submit \(zipPath.path) --keychain-profile \(notaryProfile) --wait",
+    "xcrun stapler staple \(bundle.path)",
+    "spctl --assess --type execute --verbose \(bundle.path)",
+    "ditto \(zipPath.path)"
+  ])
+  #expect(FileManager.default.fileExists(atPath: zipPath.path))
+}
+
 @Test func publishPreflightFailsWhenOriginRemoteIsMissing() throws {
   let repository = try temporaryGitRepository()
 

@@ -193,6 +193,7 @@ if [[ "$MODE" == "--notarize" ]]; then
   fi
 
   xcrun stapler staple "$BUNDLE_PATH"
+  spctl --assess --type execute --verbose "$BUNDLE_PATH"
   rm -f "$ZIP_PATH"
   ditto -c -k --keepParent "$BUNDLE_PATH" "$ZIP_PATH"
 fi
