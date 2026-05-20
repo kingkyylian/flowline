@@ -57,7 +57,7 @@
 - Command: `rtk ./script/publish_preflight.sh`
   - Result: passed after push; secret scan passed and GitHub origin was reachable.
 - Command: `rtk git push origin main`
-  - Result: passed; remote `main` is at `f0bd6b3`.
+  - Result: passed; implementation and checkpoint commits were pushed to remote `main`.
 
 ## Open Questions / Risks
 
