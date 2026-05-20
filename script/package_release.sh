@@ -171,6 +171,8 @@ cat > "$BUNDLE_PATH/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
+plutil -lint "$BUNDLE_PATH/Contents/Info.plist"
+
 codesign --force --deep --options runtime --timestamp --sign "$SIGN_IDENTITY" "$BUNDLE_PATH"
 codesign --verify --deep --strict --verbose=2 "$BUNDLE_PATH"
 

@@ -189,6 +189,109 @@ import Testing
   }
 }
 
+@Test func releaseArchiveLintsPlistAndBuildsBundleWithMetadata() throws {
+  let project = try temporaryDirectory()
+  let fakeBin = try temporaryDirectory()
+  let scriptDirectory = project.appendingPathComponent("script", isDirectory: true)
+  let resourcesDirectory = project.appendingPathComponent("Resources", isDirectory: true)
+  try FileManager.default.createDirectory(at: scriptDirectory, withIntermediateDirectories: true)
+  try FileManager.default.createDirectory(at: resourcesDirectory, withIntermediateDirectories: true)
+
+  let sourceScript = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    .appendingPathComponent("script/package_release.sh")
+  let packageScript = scriptDirectory.appendingPathComponent("package_release.sh")
+  try FileManager.default.copyItem(at: sourceScript, to: packageScript)
+  try Data([0x69, 0x63, 0x6e, 0x73]).write(
+    to: resourcesDirectory.appendingPathComponent("Flowline.icns")
+  )
+
+  let identity = "Developer ID Application: Flowline Test (TEAM123456)"
+  let bundleID = "dev.kyylian.flowline.tests"
+  let version = "1.2.3"
+  let build = "4.5.6"
+  let plutilMarker = fakeBin.appendingPathComponent("plutil-args")
+  let codesignMarker = fakeBin.appendingPathComponent("codesign-args")
+
+  let fakeSecurity = fakeBin.appendingPathComponent("security")
+  try """
+  #!/usr/bin/env bash
+  echo '  1) ABCDEF123456 "\(identity)"'
+  """.write(to: fakeSecurity, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSecurity.path)
+
+  let fakeSwift = fakeBin.appendingPathComponent("swift")
+  try """
+  #!/usr/bin/env bash
+  mkdir -p .build/release
+  printf '#!/usr/bin/env bash\\n' > .build/release/Flowline
+  chmod +x .build/release/Flowline
+  """.write(to: fakeSwift, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSwift.path)
+
+  let fakePlutil = fakeBin.appendingPathComponent("plutil")
+  try """
+  #!/usr/bin/env bash
+  printf '%s\\n' "$@" > "\(plutilMarker.path)"
+  test "$1" = "-lint"
+  test -f "$2"
+  """.write(to: fakePlutil, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakePlutil.path)
+
+  let fakeCodesign = fakeBin.appendingPathComponent("codesign")
+  try """
+  #!/usr/bin/env bash
+  printf 'call\\n' >> "\(codesignMarker.path)"
+  for arg in "$@"; do printf '%s\\n' "$arg" >> "\(codesignMarker.path)"; done
+  """.write(to: fakeCodesign, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeCodesign.path)
+
+  let fakeDitto = fakeBin.appendingPathComponent("ditto")
+  try """
+  #!/usr/bin/env bash
+  destination=""
+  for arg in "$@"; do destination="$arg"; done
+  touch "$destination"
+  """.write(to: fakeDitto, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeDitto.path)
+
+  let process = Process()
+  process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+  process.arguments = ["bash", packageScript.path, "--archive"]
+  process.currentDirectoryURL = project
+  process.environment = [
+    "PATH": "\(fakeBin.path):/usr/bin:/bin:/usr/sbin:/sbin",
+    "FLOWLINE_DEVELOPER_ID_IDENTITY": identity,
+    "FLOWLINE_BUNDLE_ID": bundleID,
+    "FLOWLINE_VERSION": version,
+    "FLOWLINE_BUILD": build
+  ]
+
+  let outputPipe = Pipe()
+  process.standardOutput = outputPipe
+  process.standardError = outputPipe
+
+  try process.run()
+  process.waitUntilExit()
+
+  let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+  let bundle = project.appendingPathComponent("dist/release/Flowline.app", isDirectory: true)
+  let plistURL = bundle.appendingPathComponent("Contents/Info.plist")
+  let plistData = try Data(contentsOf: plistURL)
+  let plist = try PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any]
+
+  #expect(process.terminationStatus == 0)
+  #expect(output.contains("Release archive: \(project.path)/dist/release/Flowline-\(version).zip"))
+  #expect(FileManager.default.fileExists(atPath: plutilMarker.path))
+  #expect((try String(contentsOf: plutilMarker, encoding: .utf8)).contains(plistURL.path))
+  #expect((try String(contentsOf: codesignMarker, encoding: .utf8)).contains(identity))
+  #expect(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("Contents/MacOS/Flowline").path))
+  #expect(FileManager.default.fileExists(atPath: project.appendingPathComponent("dist/release/Flowline-\(version).zip").path))
+  #expect(plist?["CFBundleIdentifier"] as? String == bundleID)
+  #expect(plist?["CFBundleShortVersionString"] as? String == version)
+  #expect(plist?["CFBundleVersion"] as? String == build)
+  #expect(plist?["LSUIElement"] as? Bool == true)
+}
+
 @Test func publishPreflightFailsWhenOriginRemoteIsMissing() throws {
   let repository = try temporaryGitRepository()
 
