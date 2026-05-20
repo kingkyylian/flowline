@@ -23,11 +23,11 @@ import Testing
   #expect(info.appName == "Flowline")
   #expect(info.versionLabel == "0.2.0 (42)")
   #expect(info.bundleIdentifier == "dev.kyylian.flowline")
-  #expect(info.githubURL.absoluteString == "https://github.com/kyylian/flowline")
+  #expect(info.githubURL.absoluteString == "https://github.com/kingkyylian/flowline")
   #expect(info.licenseName == "MIT")
-  #expect(info.licenseURL.absoluteString == "https://github.com/kyylian/flowline/blob/main/LICENSE")
+  #expect(info.licenseURL.absoluteString == "https://github.com/kingkyylian/flowline/blob/main/LICENSE")
   #expect(info.updateModeLabel == "Manual")
-  #expect(info.releasesURL.absoluteString == "https://github.com/kyylian/flowline/releases")
+  #expect(info.releasesURL.absoluteString == "https://github.com/kingkyylian/flowline/releases")
 }
 
 @Test func settingsModulePreviewKeepsFixedLimitsInTheCenter() {

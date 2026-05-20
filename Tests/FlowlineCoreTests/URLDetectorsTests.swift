@@ -23,7 +23,7 @@ import Foundation
 }
 
 @Test func ignoresNonMeetingURLs() throws {
-  let text = "Open https://github.com/kyylian/flowline"
+  let text = "Open https://github.com/kingkyylian/flowline"
 
   let url = URLDetectors.firstMeetingURL(in: text)
 

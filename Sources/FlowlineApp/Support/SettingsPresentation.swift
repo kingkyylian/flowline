@@ -129,9 +129,9 @@ struct SettingsAboutInfo: Equatable {
 }
 
 enum SettingsPresentation {
-  static let githubURL = URL(string: "https://github.com/kyylian/flowline")!
-  static let releasesURL = URL(string: "https://github.com/kyylian/flowline/releases")!
-  static let licenseURL = URL(string: "https://github.com/kyylian/flowline/blob/main/LICENSE")!
+  static let githubURL = URL(string: "https://github.com/kingkyylian/flowline")!
+  static let releasesURL = URL(string: "https://github.com/kingkyylian/flowline/releases")!
+  static let licenseURL = URL(string: "https://github.com/kingkyylian/flowline/blob/main/LICENSE")!
 
   static func modulePreviewItems(
     for preferences: FlowlineModulePreferences
