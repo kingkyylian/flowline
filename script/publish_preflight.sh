@@ -16,6 +16,17 @@ fail() {
   exit 2
 }
 
+gh_view_repo() {
+  local repo="$1"
+
+  if command -v rtk >/dev/null 2>&1; then
+    rtk gh repo view "$repo" --json nameWithOwner,url --jq .nameWithOwner
+    return
+  fi
+
+  gh repo view "$repo" --json nameWithOwner,url --jq .nameWithOwner
+}
+
 github_repo_from_url() {
   local remote_url="$1"
   local repo=""
@@ -67,8 +78,11 @@ fi
 origin_url="$(git remote get-url origin 2>/dev/null)" || fail "git remote origin is not configured"
 repo="$(github_repo_from_url "$origin_url")" || fail "origin remote is not a GitHub URL: $origin_url"
 
-command -v gh >/dev/null 2>&1 || fail "GitHub CLI is required for publish preflight"
-gh repo view "$repo" --json nameWithOwner,url --jq .nameWithOwner \
+if ! command -v gh >/dev/null 2>&1 && ! command -v rtk >/dev/null 2>&1; then
+  fail "GitHub CLI is required for publish preflight"
+fi
+
+gh_view_repo "$repo" \
   || fail "GitHub repository is not reachable: $repo"
 
 echo "Publish preflight passed for $repo"
