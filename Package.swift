@@ -2,6 +2,10 @@
 
 import PackageDescription
 
+let isolatedDeinitSettings: [SwiftSetting] = [
+  .enableExperimentalFeature("IsolatedDeinit")
+]
+
 let package = Package(
   name: "Flowline",
   platforms: [
@@ -13,19 +17,23 @@ let package = Package(
   ],
   targets: [
     .target(
-      name: "FlowlineCore"
+      name: "FlowlineCore",
+      swiftSettings: isolatedDeinitSettings
     ),
     .executableTarget(
       name: "FlowlineApp",
-      dependencies: ["FlowlineCore"]
+      dependencies: ["FlowlineCore"],
+      swiftSettings: isolatedDeinitSettings
     ),
     .testTarget(
       name: "FlowlineCoreTests",
-      dependencies: ["FlowlineCore"]
+      dependencies: ["FlowlineCore"],
+      swiftSettings: isolatedDeinitSettings
     ),
     .testTarget(
       name: "FlowlineAppTests",
-      dependencies: ["FlowlineApp", "FlowlineCore"]
+      dependencies: ["FlowlineApp", "FlowlineCore"],
+      swiftSettings: isolatedDeinitSettings
     )
   ]
 )
