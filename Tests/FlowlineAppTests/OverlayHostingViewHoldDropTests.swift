@@ -107,7 +107,7 @@ private func withOverlayHoldDropHarness(_ body: (OverlayHoldDropHarness) throws 
 }
 
 @MainActor
-private final class OverlayHoldDropDraggingInfo: NSObject, @MainActor NSDraggingInfo {
+private final class OverlayHoldDropDraggingInfo: NSObject, @preconcurrency NSDraggingInfo {
   let draggingPasteboard: NSPasteboard
   let draggingLocation: NSPoint
   var draggingFormation: NSDraggingFormation = .default

@@ -54,6 +54,16 @@ import Testing
   }
 }
 
+@Test func ciSwiftAcceptsDraggingInfoTestDoubleConformance() throws {
+  let source = try String(
+    contentsOfFile: "Tests/FlowlineAppTests/OverlayHostingViewHoldDropTests.swift",
+    encoding: .utf8
+  )
+
+  #expect(!source.contains("@MainActor NSDraggingInfo"))
+  #expect(source.contains("@preconcurrency NSDraggingInfo"))
+}
+
 @Test func releasePreflightFailsBeforeBuildWhenDeveloperIDIdentityIsMissing() throws {
   let process = Process()
   process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
