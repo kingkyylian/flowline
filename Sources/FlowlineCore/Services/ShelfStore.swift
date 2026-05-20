@@ -4,17 +4,14 @@ public struct ShelfStore: Sendable {
   public private(set) var items: [ShelfItem]
   private let limit: Int
   private let retention: TimeInterval
-  private let sensitiveRetention: TimeInterval
 
   public init(
     limit: Int = 10,
     items: [ShelfItem] = [],
-    retention: TimeInterval = 900,
-    sensitiveRetention: TimeInterval = 60
+    retention: TimeInterval = 900
   ) {
     self.limit = limit
     self.retention = retention
-    self.sensitiveRetention = sensitiveRetention
     self.items = Array(items.prefix(limit))
   }
 
@@ -35,7 +32,7 @@ public struct ShelfStore: Sendable {
         value: trimmed,
         url: classification.url,
         createdAt: now,
-        expiresAt: now.addingTimeInterval(classification.kind == .sensitive ? sensitiveRetention : retention)
+        expiresAt: classification.kind == .sensitive ? nil : now.addingTimeInterval(retention)
       )
     )
   }

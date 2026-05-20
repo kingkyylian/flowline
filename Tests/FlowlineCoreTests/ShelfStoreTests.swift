@@ -122,7 +122,7 @@ import Foundation
   #expect(store.items.first?.title == "example.com")
 }
 
-@Test func masksSensitiveClipboardTextAndExpiresQuickly() throws {
+@Test func masksSensitiveClipboardTextWithoutExpiry() throws {
   let now = Date(timeIntervalSince1970: 1_800_000_000)
   let secret = "A9x!kL4#pQ7$vN2"
   var store = ShelfStore(limit: 5)
@@ -133,7 +133,7 @@ import Foundation
   #expect(item.kind == .sensitive)
   #expect(item.title == "Sensitive clip")
   #expect(item.value == secret)
-  #expect(item.expiresAt == now.addingTimeInterval(60))
+  #expect(item.expiresAt == nil)
 }
 
 @Test func prunesExpiredShelfItems() throws {

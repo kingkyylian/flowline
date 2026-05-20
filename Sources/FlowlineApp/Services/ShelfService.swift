@@ -42,10 +42,9 @@ final class ShelfService: ObservableObject {
     autoCaptureOptions: ShelfAutoCaptureOptions = .defaults,
     screenshotTextRecognizer: (any ScreenshotTextRecognizing)? = VisionScreenshotTextRecognizer(),
     retention: TimeInterval = 900,
-    sensitiveRetention: TimeInterval = 60,
     nowProvider: (() -> Date)? = nil
   ) {
-    self.store = ShelfStore(limit: 10, retention: retention, sensitiveRetention: sensitiveRetention)
+    self.store = ShelfStore(limit: 10, retention: retention)
     self.screenshotDirectoriesProvider = screenshotDirectoriesProvider ?? Self.defaultScreenshotDirectories
     self.screenshotStashDirectoryProvider = screenshotStashDirectoryProvider ?? Self.defaultScreenshotStashDirectory
     self.pasteboardProvider = pasteboardProvider ?? { NSPasteboard.general }

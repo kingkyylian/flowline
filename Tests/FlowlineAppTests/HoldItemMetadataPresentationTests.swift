@@ -47,3 +47,14 @@ import FlowlineCore
 
   #expect(HoldItemMetadataPresentation.label(for: item, expiry: "14m") == "SS · OCR 2w · 14m")
 }
+
+@Test func sensitiveMetadataOmitsExpiryWhenClipDoesNotExpire() {
+  let item = ShelfItem(
+    kind: .sensitive,
+    title: "Sensitive clip",
+    value: "A9x!kL4#pQ7$vN2",
+    url: nil
+  )
+
+  #expect(HoldItemMetadataPresentation.label(for: item, expiry: nil) == "SECRET")
+}
