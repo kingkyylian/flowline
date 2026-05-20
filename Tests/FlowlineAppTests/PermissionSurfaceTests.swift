@@ -166,6 +166,46 @@ import Testing
   #expect(!result.output.contains(googleOAuthClientID))
 }
 
+@Test func secretScanRejectsOpenAIAPIKeysBeforePublish() throws {
+  let openAIKey = "sk-" + "proj-" + "abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  try assertSecretScanRejects(
+    leakedValue: openAIKey,
+    expectedLabel: "possible OpenAI API key"
+  )
+}
+
+@Test func secretScanRejectsAnthropicAPIKeysBeforePublish() throws {
+  let anthropicKey = "sk-" + "ant-" + "abcdefghijklmnopqrstuvwxyz1234567890"
+  try assertSecretScanRejects(
+    leakedValue: anthropicKey,
+    expectedLabel: "possible Anthropic API key"
+  )
+}
+
+@Test func secretScanRejectsGitHubTokensBeforePublish() throws {
+  let githubToken = "gh" + "p_" + "abcdefghijklmnopqrstuvwxyz1234567890ABCD"
+  try assertSecretScanRejects(
+    leakedValue: githubToken,
+    expectedLabel: "possible GitHub token"
+  )
+}
+
+@Test func secretScanRejectsSlackTokensBeforePublish() throws {
+  let slackToken = "xox" + "b-" + "123456789012-123456789012-abcdefghijklmnopqrstuvwxyz"
+  try assertSecretScanRejects(
+    leakedValue: slackToken,
+    expectedLabel: "possible Slack token"
+  )
+}
+
+@Test func secretScanRejectsAWSAccessKeysBeforePublish() throws {
+  let awsAccessKey = "AK" + "IA" + "ABCDEFGHIJKLMNOP"
+  try assertSecretScanRejects(
+    leakedValue: awsAccessKey,
+    expectedLabel: "possible AWS access key"
+  )
+}
+
 @Test func secretScanRejectsSecretsInReachableGitHistoryBeforePublish() throws {
   let repository = try temporaryGitRepository()
   let source = repository.appendingPathComponent("Probe.swift")
@@ -198,6 +238,24 @@ import Testing
 private struct ProcessResult {
   let status: Int32
   let output: String
+}
+
+private func assertSecretScanRejects(
+  leakedValue: String,
+  expectedLabel: String
+) throws {
+  let repository = try temporaryGitRepository()
+  let source = repository.appendingPathComponent("Probe.swift")
+  try """
+  let leakedValue = "\(leakedValue)"
+  """.write(to: source, atomically: true, encoding: .utf8)
+
+  let result = try runSecretScan(in: repository)
+
+  #expect(result.status == 2)
+  #expect(result.output.contains(expectedLabel))
+  #expect(result.output.contains("Probe.swift"))
+  #expect(!result.output.contains(leakedValue))
 }
 
 private func runPublishPreflight(in directory: URL, pathPrefix: String? = nil) throws -> ProcessResult {

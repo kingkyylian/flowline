@@ -73,5 +73,10 @@ scan_pattern() {
 
 scan_pattern "possible Google OAuth client secret" 'GO[A-Z]{4}-[A-Za-z0-9_-]{20,}'
 scan_pattern "possible Google OAuth client ID" '[0-9]{12,}-[A-Za-z0-9_-]{20,}\.apps\.googleusercontent\.com'
+scan_pattern "possible OpenAI API key" 'sk-(proj|svcacct)-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{32,}'
+scan_pattern "possible Anthropic API key" 'sk-ant-[A-Za-z0-9_-]{20,}'
+scan_pattern "possible GitHub token" 'gh[pousr]_[A-Za-z0-9_]{36,}|github_pat_[A-Za-z0-9_]{20,}'
+scan_pattern "possible Slack token" 'xox[baprs]-[A-Za-z0-9-]{20,}'
+scan_pattern "possible AWS access key" 'A(KIA|SIA)[A-Z0-9]{16}'
 
 echo "Secret scan passed"
