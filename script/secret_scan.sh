@@ -36,7 +36,7 @@ scan_worktree_pattern() {
   local pattern="$2"
   local output
 
-  if output="$(rg --hidden --glob '!.git/**' --glob '!dist/**' --glob '!.build/**' -n "$pattern" .)"; then
+  if output="$(rg --hidden --no-ignore --glob '!.git/**' --glob '!dist/**' --glob '!.build/**' -n "$pattern" .)"; then
     echo "error: $label detected" >&2
     echo "$output" >&2
     exit 2

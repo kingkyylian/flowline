@@ -130,6 +130,24 @@ import Testing
   #expect(result.output.contains("Probe.swift"))
 }
 
+@Test func secretScanRejectsGoogleOAuthClientSecretsInIgnoredFilesBeforePublish() throws {
+  let repository = try temporaryGitRepository()
+  let ignoreFile = repository.appendingPathComponent(".gitignore")
+  try ".env\n".write(to: ignoreFile, atomically: true, encoding: .utf8)
+
+  let ignoredEnv = repository.appendingPathComponent(".env")
+  let googleOAuthSecret = "GO" + "CSPX-" + "abcdefghijklmnopqrstuvwxyz1234"
+  try """
+  LEAKED_SECRET=\(googleOAuthSecret)
+  """.write(to: ignoredEnv, atomically: true, encoding: .utf8)
+
+  let result = try runSecretScan(in: repository)
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("possible Google OAuth client secret"))
+  #expect(result.output.contains(".env"))
+}
+
 @Test func secretScanRejectsGoogleOAuthClientIDsBeforePublish() throws {
   let repository = try temporaryGitRepository()
   let source = repository.appendingPathComponent("Probe.swift")
