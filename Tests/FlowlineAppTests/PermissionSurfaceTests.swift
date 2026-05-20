@@ -22,6 +22,16 @@ import Testing
   #expect(!source.contains("kCGWindowName"))
 }
 
+@Test func ciRunsPublishPreflightAgainstFullGitHistory() throws {
+  let workflow = try String(
+    contentsOfFile: ".github/workflows/ci.yml",
+    encoding: .utf8
+  )
+
+  #expect(workflow.contains("fetch-depth: 0"))
+  #expect(workflow.contains("script/publish_preflight.sh"))
+}
+
 @Test func releasePreflightFailsBeforeBuildWhenDeveloperIDIdentityIsMissing() throws {
   let process = Process()
   process.executableURL = URL(fileURLWithPath: "/usr/bin/env")

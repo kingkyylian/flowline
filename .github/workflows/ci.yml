@@ -12,9 +12,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Show Swift version
         run: swift --version
+
+      - name: Publish preflight
+        run: script/publish_preflight.sh
 
       - name: Build
         run: swift build
