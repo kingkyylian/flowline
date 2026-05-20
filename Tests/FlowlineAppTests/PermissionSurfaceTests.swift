@@ -73,6 +73,64 @@ import Testing
   #expect(result.output.contains("GitHub repository is not reachable: example/missing-flowline"))
 }
 
+@Test func secretScanRejectsGoogleOAuthClientSecretsBeforePublish() throws {
+  let repository = try temporaryGitRepository()
+  let source = repository.appendingPathComponent("Probe.swift")
+  let googleOAuthSecret = "GO" + "CSPX-" + "abcdefghijklmnopqrstuvwxyz1234"
+  try """
+  let leakedSecret = "\(googleOAuthSecret)"
+  """.write(to: source, atomically: true, encoding: .utf8)
+
+  let result = try runSecretScan(in: repository)
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("possible Google OAuth client secret"))
+  #expect(result.output.contains("Probe.swift"))
+}
+
+@Test func secretScanRejectsGoogleOAuthClientIDsBeforePublish() throws {
+  let repository = try temporaryGitRepository()
+  let source = repository.appendingPathComponent("Probe.swift")
+  let googleOAuthClientID = "123456789012-" + "abcdefghijklmnopqrstuvwxyz123456.apps.googleusercontent.com"
+  try """
+  let leakedClientID = "\(googleOAuthClientID)"
+  """.write(to: source, atomically: true, encoding: .utf8)
+
+  let result = try runSecretScan(in: repository)
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("possible Google OAuth client ID"))
+  #expect(result.output.contains("Probe.swift"))
+}
+
+@Test func secretScanRejectsSecretsInReachableGitHistoryBeforePublish() throws {
+  let repository = try temporaryGitRepository()
+  let source = repository.appendingPathComponent("Probe.swift")
+  let googleOAuthSecret = "GO" + "CSPX-" + "abcdefghijklmnopqrstuvwxyz1234"
+  try """
+  let leakedSecret = "\(googleOAuthSecret)"
+  """.write(to: source, atomically: true, encoding: .utf8)
+  try runProcess("/usr/bin/git", ["add", "Probe.swift"], in: repository)
+  try runProcess(
+    "/usr/bin/git",
+    ["-c", "user.name=Flowline Tests", "-c", "user.email=tests@example.invalid", "commit", "-m", "Add leaked probe"],
+    in: repository
+  )
+  try FileManager.default.removeItem(at: source)
+  try runProcess("/usr/bin/git", ["add", "-A"], in: repository)
+  try runProcess(
+    "/usr/bin/git",
+    ["-c", "user.name=Flowline Tests", "-c", "user.email=tests@example.invalid", "commit", "-m", "Remove leaked probe"],
+    in: repository
+  )
+
+  let result = try runSecretScan(in: repository)
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("possible Google OAuth client secret"))
+  #expect(result.output.contains("Probe.swift"))
+}
+
 private struct ProcessResult {
   let status: Int32
   let output: String
@@ -81,6 +139,17 @@ private struct ProcessResult {
 private func runPublishPreflight(in directory: URL, pathPrefix: String? = nil) throws -> ProcessResult {
   let script = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
     .appendingPathComponent("script/publish_preflight.sh")
+  return try runProcess(
+    "/usr/bin/env",
+    ["bash", script.path],
+    in: directory,
+    pathPrefix: pathPrefix
+  )
+}
+
+private func runSecretScan(in directory: URL, pathPrefix: String? = nil) throws -> ProcessResult {
+  let script = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    .appendingPathComponent("script/secret_scan.sh")
   return try runProcess(
     "/usr/bin/env",
     ["bash", script.path],
@@ -100,7 +169,7 @@ private func runProcess(
   process.executableURL = URL(fileURLWithPath: executable)
   process.arguments = arguments
   process.currentDirectoryURL = directory
-  var path = "/usr/bin:/bin:/usr/sbin:/sbin"
+  var path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
   if let pathPrefix {
     path = "\(pathPrefix):\(path)"
   }

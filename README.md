@@ -51,6 +51,12 @@ Run tests:
 swift test
 ```
 
+Scan the current tree and reachable git history for high-risk secrets:
+
+```bash
+script/secret_scan.sh
+```
+
 Check publish readiness before pushing:
 
 ```bash

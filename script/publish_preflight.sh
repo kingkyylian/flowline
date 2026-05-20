@@ -6,8 +6,8 @@ usage() {
 Usage:
   script/publish_preflight.sh
 
-Checks that the current git repository has a GitHub origin that is reachable
-through the authenticated GitHub CLI account.
+Checks that the current git repository has a clean tree, no high-risk secret
+patterns in the worktree or reachable history, and a reachable GitHub origin.
 USAGE
 }
 
@@ -25,6 +25,21 @@ gh_view_repo() {
   fi
 
   gh repo view "$repo" --json nameWithOwner,url --jq .nameWithOwner
+}
+
+remote_is_reachable() {
+  local repo="$1"
+
+  if command -v rtk >/dev/null 2>&1; then
+    rtk git ls-remote --exit-code origin HEAD
+    return
+  fi
+
+  if gh_view_repo "$repo"; then
+    return 0
+  fi
+
+  git ls-remote --exit-code origin HEAD >/dev/null 2>&1
 }
 
 github_repo_from_url() {
@@ -75,14 +90,12 @@ if [[ -n "$(git status --short)" ]]; then
   fail "worktree has uncommitted changes; commit or stash before publishing"
 fi
 
+"$(dirname "${BASH_SOURCE[0]}")/secret_scan.sh"
+
 origin_url="$(git remote get-url origin 2>/dev/null)" || fail "git remote origin is not configured"
 repo="$(github_repo_from_url "$origin_url")" || fail "origin remote is not a GitHub URL: $origin_url"
 
-if ! command -v gh >/dev/null 2>&1 && ! command -v rtk >/dev/null 2>&1; then
-  fail "GitHub CLI is required for publish preflight"
-fi
-
-gh_view_repo "$repo" \
+remote_is_reachable "$repo" \
   || fail "GitHub repository is not reachable: $repo"
 
 echo "Publish preflight passed for $repo"
