@@ -53,7 +53,7 @@ swift test
 
 Scan the current tree, ignored files, and reachable git history for high-risk
 secrets such as OAuth client values, AI API keys, GitHub tokens, Slack tokens,
-and AWS access keys:
+AWS access keys, and long sensitive assignments:
 
 ```bash
 script/secret_scan.sh

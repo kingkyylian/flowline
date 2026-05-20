@@ -206,6 +206,22 @@ import Testing
   )
 }
 
+@Test func secretScanRejectsGenericSensitiveAssignmentsBeforePublish() throws {
+  let repository = try temporaryGitRepository()
+  let envFile = repository.appendingPathComponent(".env")
+  let genericSecret = "abcdefghijklmnopqrstuvwxyz" + "1234567890"
+  try """
+  CLIENT_SECRET=\(genericSecret)
+  """.write(to: envFile, atomically: true, encoding: .utf8)
+
+  let result = try runSecretScan(in: repository)
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("possible generic sensitive assignment"))
+  #expect(result.output.contains(".env"))
+  #expect(!result.output.contains(genericSecret))
+}
+
 @Test func secretScanRejectsSecretsInReachableGitHistoryBeforePublish() throws {
   let repository = try temporaryGitRepository()
   let source = repository.appendingPathComponent("Probe.swift")

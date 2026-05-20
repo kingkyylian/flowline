@@ -78,5 +78,6 @@ scan_pattern "possible Anthropic API key" 'sk-ant-[A-Za-z0-9_-]{20,}'
 scan_pattern "possible GitHub token" 'gh[pousr]_[A-Za-z0-9_]{36,}|github_pat_[A-Za-z0-9_]{20,}'
 scan_pattern "possible Slack token" 'xox[baprs]-[A-Za-z0-9-]{20,}'
 scan_pattern "possible AWS access key" 'A(KIA|SIA)[A-Z0-9]{16}'
+scan_pattern "possible generic sensitive assignment" '([A-Za-z_][A-Za-z0-9_]*(SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|PRIVATE_KEY|CLIENT_SECRET|ACCESS_TOKEN|REFRESH_TOKEN)[A-Za-z0-9_]*|[a-z_][a-z0-9_]*(secret|token|password|passwd|api_key|private_key|client_secret|access_token|refresh_token)[a-z0-9_]*)[[:space:]]*[:=][[:space:]]*['\''"]?[A-Za-z0-9_./+=:-]{24,}'
 
 echo "Secret scan passed"
