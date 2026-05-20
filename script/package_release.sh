@@ -19,7 +19,7 @@ MODE="${1:---archive}"
 usage() {
   cat <<USAGE
 Usage:
-  FLOWLINE_DEVELOPER_ID_IDENTITY="Developer ID Application: Name (TEAMID)" script/package_release.sh [--archive|--notarize]
+  FLOWLINE_DEVELOPER_ID_IDENTITY="Developer ID Application: Name (TEAMID)" script/package_release.sh [--preflight|--archive|--notarize]
 
 Optional:
   FLOWLINE_BUNDLE_ID=dev.kyylian.flowline
@@ -32,8 +32,26 @@ and APPLE_APP_SPECIFIC_PASSWORD for xcrun notarytool.
 USAGE
 }
 
+require_developer_id_identity() {
+  if [[ -z "$SIGN_IDENTITY" ]]; then
+    echo "error: FLOWLINE_DEVELOPER_ID_IDENTITY is required for release packaging." >&2
+    exit 2
+  fi
+
+  if [[ "$SIGN_IDENTITY" != Developer\ ID\ Application:* ]]; then
+    echo "error: release packaging requires a Developer ID Application certificate." >&2
+    exit 2
+  fi
+
+  if ! security find-identity -v -p codesigning 2>/dev/null | grep -F -- "\"$SIGN_IDENTITY\"" >/dev/null; then
+    echo "error: Developer ID Application identity is not installed: $SIGN_IDENTITY" >&2
+    echo "       Install the certificate in Keychain Access or set FLOWLINE_DEVELOPER_ID_IDENTITY to an installed identity." >&2
+    exit 2
+  fi
+}
+
 case "$MODE" in
-  --archive|--notarize)
+  --preflight|--archive|--notarize)
     ;;
   --help|-h)
     usage
@@ -45,19 +63,16 @@ case "$MODE" in
     ;;
 esac
 
-if [[ -z "$SIGN_IDENTITY" ]]; then
-  echo "error: FLOWLINE_DEVELOPER_ID_IDENTITY is required for release packaging." >&2
-  exit 2
-fi
-
-if [[ "$SIGN_IDENTITY" != Developer\ ID\ Application:* ]]; then
-  echo "error: release packaging requires a Developer ID Application certificate." >&2
-  exit 2
-fi
+require_developer_id_identity
 
 if [[ ! -f "$ICON_PATH" ]]; then
   echo "error: missing app icon at $ICON_PATH. Run script/generate_app_icon.sh first." >&2
   exit 2
+fi
+
+if [[ "$MODE" == "--preflight" ]]; then
+  echo "Release preflight passed for identity: $SIGN_IDENTITY"
+  exit 0
 fi
 
 cd "$ROOT_DIR"

@@ -10,6 +10,13 @@
 
 ## Commands
 
+Check local release prerequisites before building:
+
+```bash
+FLOWLINE_DEVELOPER_ID_IDENTITY="Developer ID Application: Name (TEAMID)" \
+  script/package_release.sh --preflight
+```
+
 Build a signed release archive:
 
 ```bash
