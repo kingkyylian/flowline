@@ -35,6 +35,32 @@ FLOWLINE_NOTARY_PROFILE="flowline-notary" \
 `--notarize` validates both the Developer ID identity and notary credentials
 before starting the release build.
 
+## GitHub Release Candidate
+
+For a CI-built notarized candidate, configure these repository secrets:
+
+- `FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64`
+- `FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD`
+- `FLOWLINE_DEVELOPER_ID_IDENTITY`
+- `FLOWLINE_KEYCHAIN_PASSWORD`
+- `APPLE_ID`
+- `APPLE_TEAM_ID`
+- `APPLE_APP_SPECIFIC_PASSWORD`
+
+Then run the `Release Candidate` workflow from `main` with the intended tag,
+for example `v0.1.0`. The workflow imports the Developer ID certificate,
+stores a temporary notary profile, runs `script/package_release.sh --notarize`,
+and uploads the zip plus manifest as `flowline-release-vX.Y.Z`.
+
+After that workflow completes, `Release Candidate Verify` checks out the exact
+candidate commit, downloads the uploaded artifact, and runs:
+
+```bash
+script/publish_preflight.sh --tag v0.1.0 --archive dist/release/Flowline-0.1.0.zip --require-ci --require-artifact
+```
+
+Create or push the release tag only after the verify workflow succeeds.
+
 Validate the shipped app:
 
 ```bash
@@ -72,11 +98,11 @@ For public releases, keep `--require-ci`; it verifies the manifest's GitHub
 Actions run succeeded for the same `HEAD`.
 
 When the release archive was produced and uploaded by GitHub Actions, set
-`GITHUB_ARTIFACT_NAME` before packaging so the release manifest records the
-artifact name, then use the stricter artifact gate:
+`FLOWLINE_GITHUB_ARTIFACT_NAME` before packaging so the release manifest records
+the artifact name, then use the stricter artifact gate:
 
 ```bash
-GITHUB_ARTIFACT_NAME=flowline-release-v0.1.0 script/package_release.sh --notarize
+FLOWLINE_GITHUB_ARTIFACT_NAME=flowline-release-v0.1.0 script/package_release.sh --notarize
 script/publish_preflight.sh --tag v0.1.0 --archive dist/release/Flowline-0.1.0.zip --require-ci --require-artifact
 ```
 

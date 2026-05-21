@@ -42,6 +42,54 @@ import Testing
   #expect(!workflow.contains("actions/checkout@v4"))
 }
 
+@Test func releaseCandidateWorkflowPackagesNotarizedArtifactForManualTagInput() throws {
+  let workflow = try String(
+    contentsOfFile: ".github/workflows/release-candidate.yml",
+    encoding: .utf8
+  )
+
+  #expect(workflow.contains("name: Release Candidate"))
+  #expect(workflow.contains("workflow_dispatch:"))
+  #expect(workflow.contains("tag:"))
+  #expect(workflow.contains("github.ref == 'refs/heads/main'"))
+  #expect(workflow.contains("FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64"))
+  #expect(workflow.contains("FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD"))
+  #expect(workflow.contains("FLOWLINE_DEVELOPER_ID_IDENTITY"))
+  #expect(workflow.contains("FLOWLINE_KEYCHAIN_PASSWORD"))
+  #expect(workflow.contains("APPLE_ID"))
+  #expect(workflow.contains("APPLE_TEAM_ID"))
+  #expect(workflow.contains("APPLE_APP_SPECIFIC_PASSWORD"))
+  #expect(workflow.contains("xcrun notarytool store-credentials"))
+  #expect(workflow.contains("ARTIFACT_NAME=\"flowline-release-$RELEASE_TAG\""))
+  #expect(workflow.contains("FLOWLINE_GITHUB_ARTIFACT_NAME=$ARTIFACT_NAME"))
+  #expect(workflow.contains("script/package_release.sh --notarize"))
+  #expect(workflow.contains("actions/upload-artifact@v4"))
+  #expect(workflow.contains("if-no-files-found: error"))
+  #expect(!workflow.contains("--require-ci --require-artifact"))
+}
+
+@Test func releaseCandidateVerifyWorkflowRunsArtifactPreflightAfterCandidateCompletes() throws {
+  let workflow = try String(
+    contentsOfFile: ".github/workflows/release-candidate-verify.yml",
+    encoding: .utf8
+  )
+
+  #expect(workflow.contains("name: Release Candidate Verify"))
+  #expect(workflow.contains("workflow_run:"))
+  #expect(workflow.contains("workflows: [Release Candidate]"))
+  #expect(workflow.contains("types: [completed]"))
+  #expect(workflow.contains("github.event.workflow_run.conclusion == 'success'"))
+  #expect(workflow.contains("github.event.workflow_run.head_repository.full_name == github.repository"))
+  #expect(workflow.contains("github.event.workflow_run.head_branch == 'main'"))
+  #expect(workflow.contains("ref: ${{ github.event.workflow_run.head_sha }}"))
+  #expect(workflow.contains("CANDIDATE_RUN_ID: ${{ github.event.workflow_run.id }}"))
+  #expect(workflow.contains("gh run download \"$CANDIDATE_RUN_ID\""))
+  #expect(workflow.contains("script/publish_preflight.sh"))
+  #expect(workflow.contains("--require-ci"))
+  #expect(workflow.contains("--require-artifact"))
+  #expect(workflow.contains("GH_TOKEN: ${{ github.token }}"))
+}
+
 @Test func ciAvoidsProductionCompilerRejectedIsolatedDeinitFlags() throws {
   let workflow = try String(
     contentsOfFile: ".github/workflows/ci.yml",
@@ -362,6 +410,25 @@ import Testing
     environment: [
       "FLOWLINE_VERSION": version,
       "GITHUB_ARTIFACT_NAME": artifactName
+    ]
+  )
+
+  let manifest = try String(contentsOf: fixture.manifestPath(version: version), encoding: .utf8)
+
+  #expect(result.status == 0)
+  #expect(manifest.contains("github_artifact_name=\(artifactName)"))
+}
+
+@Test func releaseArchiveManifestRecordsFlowlineGitHubArtifactNameWhenAvailable() throws {
+  let fixture = try ReleasePackagingFixture()
+  let version = "1.2.3"
+  let artifactName = "flowline-release-\(version)"
+
+  let result = try fixture.runPackageRelease(
+    "--archive",
+    environment: [
+      "FLOWLINE_VERSION": version,
+      "FLOWLINE_GITHUB_ARTIFACT_NAME": artifactName
     ]
   )
 

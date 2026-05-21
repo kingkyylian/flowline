@@ -1,0 +1,80 @@
+name: Release Candidate Verify
+
+on:
+  workflow_run:
+    workflows: [Release Candidate]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  verify-artifact-provenance:
+    name: Verify artifact provenance
+    runs-on: macos-15
+    timeout-minutes: 20
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_branch == 'main'
+    env:
+      CANDIDATE_RUN_ID: ${{ github.event.workflow_run.id }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout release candidate source
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Download release candidate artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          artifact_name="$(
+            gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID/artifacts" \
+              --jq '.artifacts[] | select(.name | startswith("flowline-release-v")) | .name' \
+              | head -n 1
+          )"
+          if [[ -z "$artifact_name" ]]; then
+            echo "Release candidate artifact was not found for run $CANDIDATE_RUN_ID" >&2
+            exit 2
+          fi
+
+          mkdir -p dist/release
+          gh run download "$CANDIDATE_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "$artifact_name" \
+            --dir dist/release
+
+      - name: Resolve release archive
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_archive="$(find dist/release -type f -name 'Flowline-*.zip' -print -quit)"
+          if [[ -z "$release_archive" ]]; then
+            echo "Downloaded artifact does not contain a Flowline release archive" >&2
+            exit 2
+          fi
+
+          release_name="${release_archive##*/}"
+          release_version="${release_name#Flowline-}"
+          release_version="${release_version%.zip}"
+
+          {
+            echo "RELEASE_ARCHIVE=$release_archive"
+            echo "RELEASE_TAG=v$release_version"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify publish preflight with artifact provenance
+        shell: bash
+        run: >
+          script/publish_preflight.sh
+          --tag "$RELEASE_TAG"
+          --archive "$RELEASE_ARCHIVE"
+          --require-ci
+          --require-artifact

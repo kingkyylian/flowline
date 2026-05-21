@@ -1,0 +1,157 @@
+name: Release Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to prepare, for example v0.1.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  notarized-archive:
+    name: Notarized archive
+    runs-on: macos-15
+    timeout-minutes: 60
+    if: github.ref == 'refs/heads/main'
+    env:
+      FLOWLINE_BUNDLE_ID: ${{ vars.FLOWLINE_BUNDLE_ID || 'dev.kyylian.flowline' }}
+      FLOWLINE_BUILD: ${{ github.run_number }}
+      FLOWLINE_NOTARY_PROFILE: flowline-notary
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Determine release metadata
+        id: release-metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RELEASE_TAG="${{ inputs.tag }}"
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+(\.[0-9]+){0,2}$ ]]; then
+            echo "Release tag is invalid: $RELEASE_TAG" >&2
+            exit 2
+          fi
+
+          RELEASE_VERSION="${RELEASE_TAG#v}"
+          ARTIFACT_NAME="flowline-release-$RELEASE_TAG"
+
+          {
+            echo "RELEASE_TAG=$RELEASE_TAG"
+            echo "FLOWLINE_VERSION=$RELEASE_VERSION"
+            echo "FLOWLINE_GITHUB_ARTIFACT_NAME=$ARTIFACT_NAME"
+          } >> "$GITHUB_ENV"
+
+          {
+            echo "version=$RELEASE_VERSION"
+            echo "artifact_name=$ARTIFACT_NAME"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Validate release secrets
+        shell: bash
+        env:
+          FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          FLOWLINE_DEVELOPER_ID_IDENTITY: ${{ secrets.FLOWLINE_DEVELOPER_ID_IDENTITY }}
+          FLOWLINE_KEYCHAIN_PASSWORD: ${{ secrets.FLOWLINE_KEYCHAIN_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          missing=false
+          for name in \
+            FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64 \
+            FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD \
+            FLOWLINE_DEVELOPER_ID_IDENTITY \
+            FLOWLINE_KEYCHAIN_PASSWORD \
+            APPLE_ID \
+            APPLE_TEAM_ID \
+            APPLE_APP_SPECIFIC_PASSWORD
+          do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required release secret: $name" >&2
+              missing=true
+            fi
+          done
+
+          if [[ "$missing" == true ]]; then
+            exit 2
+          fi
+
+      - name: Import Developer ID certificate
+        shell: bash
+        env:
+          FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          FLOWLINE_KEYCHAIN_PASSWORD: ${{ secrets.FLOWLINE_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          CERTIFICATE_PATH="$RUNNER_TEMP/flowline-developer-id.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/flowline-signing.keychain-db"
+
+          printf '%s' "$FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          security create-keychain -p "$FLOWLINE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$FLOWLINE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$FLOWLINE_KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -d user -s "$KEYCHAIN_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Store notary credentials
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          xcrun notarytool store-credentials "$FLOWLINE_NOTARY_PROFILE" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD"
+
+      - name: Package notarized archive
+        shell: bash
+        env:
+          FLOWLINE_DEVELOPER_ID_IDENTITY: ${{ secrets.FLOWLINE_DEVELOPER_ID_IDENTITY }}
+        run: script/package_release.sh --notarize
+
+      - name: Upload release candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.release-metadata.outputs.artifact_name }}
+          path: |
+            dist/release/Flowline-${{ steps.release-metadata.outputs.version }}.zip
+            dist/release/Flowline-${{ steps.release-metadata.outputs.version }}.manifest
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summarize release candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          shasum -a 256 "dist/release/Flowline-$FLOWLINE_VERSION.zip"
+          sed -n '1,80p' "dist/release/Flowline-$FLOWLINE_VERSION.manifest"
