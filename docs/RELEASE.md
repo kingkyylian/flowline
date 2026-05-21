@@ -107,5 +107,6 @@ script/publish_preflight.sh --tag v0.1.0 --archive dist/release/Flowline-0.1.0.z
 ```
 
 `--require-artifact` downloads that artifact from the manifest's workflow run
-and verifies the downloaded `Flowline-X.Y.Z.zip` hash matches the archive being
+and requires the artifact name to match `flowline-release-vX.Y.Z` before
+verifying the downloaded `Flowline-X.Y.Z.zip` hash matches the archive being
 tagged.

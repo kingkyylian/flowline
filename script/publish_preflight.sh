@@ -346,6 +346,11 @@ if [[ "$require_ci" == true ]]; then
       fail "release manifest does not identify a GitHub Actions artifact"
     fi
 
+    expected_github_artifact_name="flowline-release-$release_tag"
+    if [[ "$release_manifest_github_artifact_name" != "$expected_github_artifact_name" ]]; then
+      fail "release manifest GitHub artifact name does not match tag: expected $expected_github_artifact_name, found $release_manifest_github_artifact_name"
+    fi
+
     download_dir="$(mktemp -d)"
     trap 'rm -rf "$download_dir"' EXIT
     github_run_download_artifact "$repo" "$release_manifest_github_run_id" "$release_manifest_github_artifact_name" "$download_dir" \

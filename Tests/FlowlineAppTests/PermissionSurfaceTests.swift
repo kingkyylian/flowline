@@ -1010,9 +1010,46 @@ import Testing
   #expect(result.output.contains("release manifest does not identify a GitHub Actions artifact"))
 }
 
+@Test func publishPreflightRejectsCIManifestWhenArtifactNameDoesNotMatchTag() throws {
+  let runID = "1234567890"
+  let artifactName = "flowline-release-v1.2.4"
+  let fixture = try releasePreflightFixture(
+    githubRun: .init(
+      id: runID,
+      head: "",
+      status: "completed",
+      conclusion: "success"
+    ),
+    githubArtifact: .init(
+      name: artifactName,
+      archiveName: "Flowline-1.2.3.zip",
+      contents: "archive\n"
+    )
+  )
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(
+    for: archive,
+    version: "1.2.3",
+    gitCommit: fixture.head,
+    githubRepository: "kingkyylian/flowline",
+    githubRunID: runID,
+    githubArtifactName: artifactName
+  )
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path, "--require-ci", "--require-artifact"],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("release manifest GitHub artifact name does not match tag: expected flowline-release-v1.2.3, found flowline-release-v1.2.4"))
+}
+
 @Test func publishPreflightRejectsCIManifestWhenDownloadedArtifactIsMissingArchive() throws {
   let runID = "1234567890"
-  let artifactName = "flowline-release-1.2.3"
+  let artifactName = "flowline-release-v1.2.3"
   let fixture = try releasePreflightFixture(
     githubRun: .init(
       id: runID,
@@ -1049,7 +1086,7 @@ import Testing
 
 @Test func publishPreflightRejectsCIManifestWhenDownloadedArtifactHashDoesNotMatch() throws {
   let runID = "1234567890"
-  let artifactName = "flowline-release-1.2.3"
+  let artifactName = "flowline-release-v1.2.3"
   let fixture = try releasePreflightFixture(
     githubRun: .init(
       id: runID,
@@ -1086,7 +1123,7 @@ import Testing
 
 @Test func publishPreflightRejectsCIManifestWhenDownloadedArtifactHasAmbiguousArchives() throws {
   let runID = "1234567890"
-  let artifactName = "flowline-release-1.2.3"
+  let artifactName = "flowline-release-v1.2.3"
   let fixture = try releasePreflightFixture(
     githubRun: .init(
       id: runID,
@@ -1124,7 +1161,7 @@ import Testing
 
 @Test func publishPreflightAcceptsCIManifestWhenDownloadedArtifactMatchesArchive() throws {
   let runID = "1234567890"
-  let artifactName = "flowline-release-1.2.3"
+  let artifactName = "flowline-release-v1.2.3"
   let fixture = try releasePreflightFixture(
     githubRun: .init(
       id: runID,

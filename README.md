@@ -101,7 +101,8 @@ for example `dist/release/Flowline-0.1.0.manifest`, and `--require-ci` verifies
 the manifest points at a successful GitHub Actions run for the same commit.
 For archives uploaded by GitHub Actions, set `FLOWLINE_GITHUB_ARTIFACT_NAME` during
 packaging and add `--require-artifact`; preflight downloads that artifact and
-checks its `Flowline-X.Y.Z.zip` hash against the local archive before tagging.
+requires its name to match `flowline-release-vX.Y.Z` before checking the
+downloaded `Flowline-X.Y.Z.zip` hash against the local archive.
 
 ## Release
 
