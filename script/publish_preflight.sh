@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<USAGE
 Usage:
-  script/publish_preflight.sh [--tag vX.Y.Z --archive path/to/Flowline-X.Y.Z.zip]
+  script/publish_preflight.sh [--tag vX.Y.Z --archive path/to/Flowline-X.Y.Z.zip [--require-ci]]
 
 Checks that the current git repository has a clean tree, no high-risk secret
 patterns in the worktree or reachable history, and a reachable GitHub origin.
@@ -12,6 +12,7 @@ patterns in the worktree or reachable history, and a reachable GitHub origin.
 Optional:
   --tag vX.Y.Z     Also verify that the release tag does not already exist.
   --archive PATH   Require a non-empty Flowline-X.Y.Z.zip archive and matching manifest.
+  --require-ci     Require the manifest to point at a successful GitHub Actions run for HEAD.
 USAGE
 }
 
@@ -29,6 +30,24 @@ gh_view_repo() {
   fi
 
   gh repo view "$repo" --json nameWithOwner,url --jq .nameWithOwner
+}
+
+github_run_metadata() {
+  local repo="$1"
+  local run_id="$2"
+
+  if command -v rtk >/dev/null 2>&1; then
+    rtk gh run view "$run_id" \
+      --repo "$repo" \
+      --json headSha,status,conclusion \
+      --jq '.headSha + "\t" + .status + "\t" + (.conclusion // "")'
+    return
+  fi
+
+  gh run view "$run_id" \
+    --repo "$repo" \
+    --json headSha,status,conclusion \
+    --jq '.headSha + "\t" + .status + "\t" + (.conclusion // "")'
 }
 
 origin_head_sha() {
@@ -156,6 +175,9 @@ release_tag=""
 release_archive=""
 release_manifest=""
 release_manifest_git_commit=""
+release_manifest_github_repository=""
+release_manifest_github_run_id=""
+require_ci=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tag)
@@ -167,6 +189,9 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ $# -gt 0 ]] || fail "--archive requires a value"
       release_archive="$1"
+      ;;
+    --require-ci)
+      require_ci=true
       ;;
     --help|-h)
       usage
@@ -188,6 +213,10 @@ fi
 
 if [[ -n "$release_archive" && -z "$release_tag" ]]; then
   fail "--archive requires --tag"
+fi
+
+if [[ "$require_ci" == true && -z "$release_tag" ]]; then
+  fail "--require-ci requires --tag and --archive"
 fi
 
 if [[ -n "$release_tag" ]]; then
@@ -232,6 +261,8 @@ if [[ -n "$release_tag" ]]; then
     || fail "release manifest size_bytes does not match archive: expected $actual_size_bytes, found $manifest_size_bytes"
 
   release_manifest_git_commit="$(require_manifest_value git_commit "$release_manifest")"
+  release_manifest_github_repository="$(manifest_value github_repository "$release_manifest" || true)"
+  release_manifest_github_run_id="$(manifest_value github_run_id "$release_manifest" || true)"
 fi
 
 if [[ -n "$(git status --short)" ]]; then
@@ -254,6 +285,29 @@ fi
 
 if [[ -n "$release_tag" && "$release_manifest_git_commit" != "$local_head" ]]; then
   fail "release manifest git commit does not match HEAD: expected $local_head, found $release_manifest_git_commit"
+fi
+
+if [[ "$require_ci" == true ]]; then
+  if [[ -z "$release_manifest_github_repository" || "$release_manifest_github_repository" == "unknown" ||
+        -z "$release_manifest_github_run_id" || "$release_manifest_github_run_id" == "unknown" ]]; then
+    fail "release manifest is not from GitHub Actions"
+  fi
+
+  if [[ "$release_manifest_github_repository" != "$repo" ]]; then
+    fail "release manifest GitHub repository does not match origin: expected $repo, found $release_manifest_github_repository"
+  fi
+
+  run_metadata="$(github_run_metadata "$repo" "$release_manifest_github_run_id")" \
+    || fail "unable to fetch GitHub Actions run: $release_manifest_github_run_id"
+  IFS=$'\t' read -r run_head run_status run_conclusion <<< "$run_metadata"
+
+  if [[ "$run_status" != "completed" || "$run_conclusion" != "success" ]]; then
+    fail "GitHub Actions run did not succeed: $run_status $run_conclusion"
+  fi
+
+  if [[ "$run_head" != "$local_head" ]]; then
+    fail "GitHub Actions run head does not match HEAD: expected $local_head, found $run_head"
+  fi
 fi
 
 if [[ -n "$release_tag" ]] && local_tag_exists "$release_tag"; then

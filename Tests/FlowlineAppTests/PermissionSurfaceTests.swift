@@ -326,6 +326,32 @@ import Testing
   #expect(plist?["LSUIElement"] as? Bool == true)
 }
 
+@Test func releaseArchiveManifestRecordsGitHubActionsProvenanceWhenAvailable() throws {
+  let fixture = try ReleasePackagingFixture()
+  let version = "1.2.3"
+
+  let result = try fixture.runPackageRelease(
+    "--archive",
+    environment: [
+      "FLOWLINE_VERSION": version,
+      "GITHUB_REPOSITORY": "kingkyylian/flowline",
+      "GITHUB_RUN_ID": "1234567890",
+      "GITHUB_RUN_ATTEMPT": "2",
+      "GITHUB_WORKFLOW": "Release",
+      "GITHUB_SERVER_URL": "https://github.com"
+    ]
+  )
+
+  let manifest = try String(contentsOf: fixture.manifestPath(version: version), encoding: .utf8)
+
+  #expect(result.status == 0)
+  #expect(manifest.contains("github_repository=kingkyylian/flowline"))
+  #expect(manifest.contains("github_run_id=1234567890"))
+  #expect(manifest.contains("github_run_attempt=2"))
+  #expect(manifest.contains("github_workflow=Release"))
+  #expect(manifest.contains("github_server_url=https://github.com"))
+}
+
 @Test func notarizedReleaseAssessesStapledBundleBeforeFinalZip() throws {
   let fixture = try ReleasePackagingFixture()
   let version = "2.0.0"
@@ -658,6 +684,113 @@ import Testing
   let result = try runPublishPreflight(
     in: fixture.repository,
     arguments: ["--tag", fixture.tag, "--archive", archive.path],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 0)
+  #expect(result.output.contains("Publish preflight passed for kingkyylian/flowline"))
+}
+
+@Test func publishPreflightRejectsLocalManifestWhenCIArtifactIsRequired() throws {
+  let fixture = try releasePreflightFixture()
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(for: archive, version: "1.2.3", gitCommit: fixture.head)
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path, "--require-ci"],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("release manifest is not from GitHub Actions"))
+}
+
+@Test func publishPreflightRejectsCIManifestWhenWorkflowRunHeadDoesNotMatch() throws {
+  let runID = "1234567890"
+  let fixture = try releasePreflightFixture(
+    githubRun: .init(
+      id: runID,
+      head: String(repeating: "0", count: 40),
+      status: "completed",
+      conclusion: "success"
+    )
+  )
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(
+    for: archive,
+    version: "1.2.3",
+    gitCommit: fixture.head,
+    githubRepository: "kingkyylian/flowline",
+    githubRunID: runID
+  )
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path, "--require-ci"],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("GitHub Actions run head does not match HEAD"))
+  #expect(result.output.contains(fixture.head))
+}
+
+@Test func publishPreflightRejectsCIManifestWhenWorkflowRunDidNotSucceed() throws {
+  let runID = "1234567890"
+  let fixture = try releasePreflightFixture(
+    githubRun: .init(
+      id: runID,
+      head: "",
+      status: "completed",
+      conclusion: "failure"
+    )
+  )
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(
+    for: archive,
+    version: "1.2.3",
+    gitCommit: fixture.head,
+    githubRepository: "kingkyylian/flowline",
+    githubRunID: runID
+  )
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path, "--require-ci"],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("GitHub Actions run did not succeed: completed failure"))
+}
+
+@Test func publishPreflightAcceptsCIManifestWhenWorkflowRunMatchesHead() throws {
+  let runID = "1234567890"
+  let fixture = try releasePreflightFixture(
+    githubRun: .init(
+      id: runID,
+      head: "",
+      status: "completed",
+      conclusion: "success"
+    )
+  )
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(
+    for: archive,
+    version: "1.2.3",
+    gitCommit: fixture.head,
+    githubRepository: "kingkyylian/flowline",
+    githubRunID: runID
+  )
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path, "--require-ci"],
     pathPrefix: fixture.fakeBin.path
   )
 
@@ -1138,7 +1271,17 @@ private struct ReleasePreflightFixture {
   let fakeBin: URL
 }
 
-private func releasePreflightFixture(tag: String = "v1.2.3") throws -> ReleasePreflightFixture {
+private struct FakeGitHubRun {
+  let id: String
+  let head: String
+  let status: String
+  let conclusion: String
+}
+
+private func releasePreflightFixture(
+  tag: String = "v1.2.3",
+  githubRun: FakeGitHubRun? = nil
+) throws -> ReleasePreflightFixture {
   let repository = try temporaryGitRepository()
   let source = repository.appendingPathComponent("Probe.swift")
   try "let released = true\n".write(to: source, atomically: true, encoding: .utf8)
@@ -1155,6 +1298,19 @@ private func releasePreflightFixture(tag: String = "v1.2.3") throws -> ReleasePr
 
   let fakeBin = try temporaryDirectory()
   let fakeRTK = fakeBin.appendingPathComponent("rtk")
+  let fakeGitHubRunBlock: String
+  if let githubRun {
+    let runHead = githubRun.head.isEmpty ? head : githubRun.head
+    fakeGitHubRunBlock = """
+
+    if [[ "$1" == "gh" && "$2" == "run" && "$3" == "view" && "$4" == "\(githubRun.id)" ]]; then
+      printf '%s\\t%s\\t%s\\n' "\(runHead)" "\(githubRun.status)" "\(githubRun.conclusion)"
+      exit 0
+    fi
+    """
+  } else {
+    fakeGitHubRunBlock = ""
+  }
   try """
   #!/usr/bin/env bash
   if [[ "$1" == "git" && "$2" == "ls-remote" && "$3" == "--exit-code" && "$4" == "origin" && "$5" == "HEAD" ]]; then
@@ -1165,6 +1321,7 @@ private func releasePreflightFixture(tag: String = "v1.2.3") throws -> ReleasePr
   if [[ "$1" == "git" && "$2" == "ls-remote" && "$3" == "--exit-code" && "$4" == "--tags" && "$5" == "origin" && "$6" == "refs/tags/\(tag)" ]]; then
     exit 2
   fi
+  \(fakeGitHubRunBlock)
 
   exit 99
   """.write(to: fakeRTK, atomically: true, encoding: .utf8)
@@ -1179,7 +1336,9 @@ private func writeReleaseManifest(
   gitCommit: String,
   archiveName: String? = nil,
   sha256: String? = nil,
-  sizeBytes: Int? = nil
+  sizeBytes: Int? = nil,
+  githubRepository: String? = nil,
+  githubRunID: String? = nil
 ) throws {
   let manifest = archive.deletingPathExtension().appendingPathExtension("manifest")
   let resolvedArchiveName = archiveName ?? archive.lastPathComponent
@@ -1195,6 +1354,18 @@ private func writeReleaseManifest(
   } else {
     resolvedSizeBytes = try releaseArchiveSizeBytes(archive)
   }
+  let githubFields: String
+  if let githubRepository, let githubRunID {
+    githubFields = """
+    github_repository=\(githubRepository)
+    github_run_id=\(githubRunID)
+    github_run_attempt=1
+    github_workflow=CI
+    github_server_url=https://github.com
+    """
+  } else {
+    githubFields = ""
+  }
 
   try """
   flowline_release_manifest=1
@@ -1206,6 +1377,7 @@ private func writeReleaseManifest(
   sha256=\(resolvedSHA256)
   size_bytes=\(resolvedSizeBytes)
   notarized=false
+  \(githubFields)
   """.write(to: manifest, atomically: true, encoding: .utf8)
 }
 

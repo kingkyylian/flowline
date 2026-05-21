@@ -126,6 +126,11 @@ write_release_manifest() {
   local sha256
   local size_bytes
   local git_commit
+  local github_repository="${GITHUB_REPOSITORY:-unknown}"
+  local github_run_id="${GITHUB_RUN_ID:-unknown}"
+  local github_run_attempt="${GITHUB_RUN_ATTEMPT:-unknown}"
+  local github_workflow="${GITHUB_WORKFLOW:-unknown}"
+  local github_server_url="${GITHUB_SERVER_URL:-unknown}"
 
   sha256="$(archive_sha256 "$ZIP_PATH")"
   size_bytes="$(archive_size_bytes "$ZIP_PATH")"
@@ -141,6 +146,11 @@ git_commit=$git_commit
 sha256=$sha256
 size_bytes=$size_bytes
 notarized=$notarized
+github_repository=$github_repository
+github_run_id=$github_run_id
+github_run_attempt=$github_run_attempt
+github_workflow=$github_workflow
+github_server_url=$github_server_url
 MANIFEST
 }
 

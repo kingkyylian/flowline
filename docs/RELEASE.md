@@ -60,7 +60,7 @@ xcrun stapler validate dist/release/Flowline.app
 swift test
 swift build -c release
 git diff --check
-script/publish_preflight.sh --tag v0.1.0 --archive dist/release/Flowline-0.1.0.zip
+script/publish_preflight.sh --tag v0.1.0 --archive dist/release/Flowline-0.1.0.zip --require-ci
 ```
 
 Use the release version for the tag value. The tag preflight rejects invalid
@@ -68,3 +68,5 @@ release tag names, tags that already exist locally or on `origin`, and missing,
 mismatched, or empty release archives. It also requires the manifest generated
 next to the archive, for example `dist/release/Flowline-0.1.0.manifest`, and
 verifies the manifest version, archive name, checksum, size, and git commit.
+For public releases, keep `--require-ci`; it verifies the manifest's GitHub
+Actions run succeeded for the same `HEAD`.
