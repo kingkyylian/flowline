@@ -131,6 +131,7 @@ write_release_manifest() {
   local github_run_attempt="${GITHUB_RUN_ATTEMPT:-unknown}"
   local github_workflow="${GITHUB_WORKFLOW:-unknown}"
   local github_server_url="${GITHUB_SERVER_URL:-unknown}"
+  local github_artifact_name="${GITHUB_ARTIFACT_NAME:-unknown}"
 
   sha256="$(archive_sha256 "$ZIP_PATH")"
   size_bytes="$(archive_size_bytes "$ZIP_PATH")"
@@ -151,6 +152,7 @@ github_run_id=$github_run_id
 github_run_attempt=$github_run_attempt
 github_workflow=$github_workflow
 github_server_url=$github_server_url
+github_artifact_name=$github_artifact_name
 MANIFEST
 }
 

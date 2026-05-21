@@ -70,3 +70,16 @@ next to the archive, for example `dist/release/Flowline-0.1.0.manifest`, and
 verifies the manifest version, archive name, checksum, size, and git commit.
 For public releases, keep `--require-ci`; it verifies the manifest's GitHub
 Actions run succeeded for the same `HEAD`.
+
+When the release archive was produced and uploaded by GitHub Actions, set
+`GITHUB_ARTIFACT_NAME` before packaging so the release manifest records the
+artifact name, then use the stricter artifact gate:
+
+```bash
+GITHUB_ARTIFACT_NAME=flowline-release-v0.1.0 script/package_release.sh --notarize
+script/publish_preflight.sh --tag v0.1.0 --archive dist/release/Flowline-0.1.0.zip --require-ci --require-artifact
+```
+
+`--require-artifact` downloads that artifact from the manifest's workflow run
+and verifies the downloaded `Flowline-X.Y.Z.zip` hash matches the archive being
+tagged.

@@ -352,6 +352,25 @@ import Testing
   #expect(manifest.contains("github_server_url=https://github.com"))
 }
 
+@Test func releaseArchiveManifestRecordsGitHubArtifactNameWhenAvailable() throws {
+  let fixture = try ReleasePackagingFixture()
+  let version = "1.2.3"
+  let artifactName = "flowline-release-\(version)"
+
+  let result = try fixture.runPackageRelease(
+    "--archive",
+    environment: [
+      "FLOWLINE_VERSION": version,
+      "GITHUB_ARTIFACT_NAME": artifactName
+    ]
+  )
+
+  let manifest = try String(contentsOf: fixture.manifestPath(version: version), encoding: .utf8)
+
+  #expect(result.status == 0)
+  #expect(manifest.contains("github_artifact_name=\(artifactName)"))
+}
+
 @Test func notarizedReleaseAssessesStapledBundleBeforeFinalZip() throws {
   let fixture = try ReleasePackagingFixture()
   let version = "2.0.0"
@@ -791,6 +810,147 @@ import Testing
   let result = try runPublishPreflight(
     in: fixture.repository,
     arguments: ["--tag", fixture.tag, "--archive", archive.path, "--require-ci"],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 0)
+  #expect(result.output.contains("Publish preflight passed for kingkyylian/flowline"))
+}
+
+@Test func publishPreflightRejectsCIManifestWhenArtifactIsRequiredButMissing() throws {
+  let runID = "1234567890"
+  let fixture = try releasePreflightFixture(
+    githubRun: .init(
+      id: runID,
+      head: "",
+      status: "completed",
+      conclusion: "success"
+    )
+  )
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(
+    for: archive,
+    version: "1.2.3",
+    gitCommit: fixture.head,
+    githubRepository: "kingkyylian/flowline",
+    githubRunID: runID
+  )
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path, "--require-ci", "--require-artifact"],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("release manifest does not identify a GitHub Actions artifact"))
+}
+
+@Test func publishPreflightRejectsCIManifestWhenDownloadedArtifactIsMissingArchive() throws {
+  let runID = "1234567890"
+  let artifactName = "flowline-release-1.2.3"
+  let fixture = try releasePreflightFixture(
+    githubRun: .init(
+      id: runID,
+      head: "",
+      status: "completed",
+      conclusion: "success"
+    ),
+    githubArtifact: .init(
+      name: artifactName,
+      archiveName: "Flowline-1.2.3.zip",
+      contents: nil
+    )
+  )
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(
+    for: archive,
+    version: "1.2.3",
+    gitCommit: fixture.head,
+    githubRepository: "kingkyylian/flowline",
+    githubRunID: runID,
+    githubArtifactName: artifactName
+  )
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path, "--require-ci", "--require-artifact"],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("downloaded GitHub Actions artifact does not contain release archive"))
+}
+
+@Test func publishPreflightRejectsCIManifestWhenDownloadedArtifactHashDoesNotMatch() throws {
+  let runID = "1234567890"
+  let artifactName = "flowline-release-1.2.3"
+  let fixture = try releasePreflightFixture(
+    githubRun: .init(
+      id: runID,
+      head: "",
+      status: "completed",
+      conclusion: "success"
+    ),
+    githubArtifact: .init(
+      name: artifactName,
+      archiveName: "Flowline-1.2.3.zip",
+      contents: "different archive\n"
+    )
+  )
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(
+    for: archive,
+    version: "1.2.3",
+    gitCommit: fixture.head,
+    githubRepository: "kingkyylian/flowline",
+    githubRunID: runID,
+    githubArtifactName: artifactName
+  )
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path, "--require-ci", "--require-artifact"],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("downloaded GitHub Actions artifact sha256 does not match archive"))
+}
+
+@Test func publishPreflightAcceptsCIManifestWhenDownloadedArtifactMatchesArchive() throws {
+  let runID = "1234567890"
+  let artifactName = "flowline-release-1.2.3"
+  let fixture = try releasePreflightFixture(
+    githubRun: .init(
+      id: runID,
+      head: "",
+      status: "completed",
+      conclusion: "success"
+    ),
+    githubArtifact: .init(
+      name: artifactName,
+      archiveName: "Flowline-1.2.3.zip",
+      contents: "archive\n"
+    )
+  )
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(
+    for: archive,
+    version: "1.2.3",
+    gitCommit: fixture.head,
+    githubRepository: "kingkyylian/flowline",
+    githubRunID: runID,
+    githubArtifactName: artifactName
+  )
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path, "--require-ci", "--require-artifact"],
     pathPrefix: fixture.fakeBin.path
   )
 
@@ -1278,9 +1438,16 @@ private struct FakeGitHubRun {
   let conclusion: String
 }
 
+private struct FakeGitHubArtifact {
+  let name: String
+  let archiveName: String
+  let contents: String?
+}
+
 private func releasePreflightFixture(
   tag: String = "v1.2.3",
-  githubRun: FakeGitHubRun? = nil
+  githubRun: FakeGitHubRun? = nil,
+  githubArtifact: FakeGitHubArtifact? = nil
 ) throws -> ReleasePreflightFixture {
   let repository = try temporaryGitRepository()
   let source = repository.appendingPathComponent("Probe.swift")
@@ -1301,12 +1468,51 @@ private func releasePreflightFixture(
   let fakeGitHubRunBlock: String
   if let githubRun {
     let runHead = githubRun.head.isEmpty ? head : githubRun.head
+    let fakeGitHubArtifactBlock: String
+    if let githubArtifact {
+      let writeArtifactBlock: String
+      if let contents = githubArtifact.contents {
+        writeArtifactBlock = """
+        printf '%s' "\(contents)" > "$download_dir/\(githubArtifact.archiveName)"
+        """
+      } else {
+        writeArtifactBlock = ""
+      }
+      fakeGitHubArtifactBlock = """
+
+      if [[ "$1" == "gh" && "$2" == "run" && "$3" == "download" && "$4" == "\(githubRun.id)" ]]; then
+        download_name=""
+        download_dir=""
+        while [[ $# -gt 0 ]]; do
+          case "$1" in
+            --name)
+              shift
+              download_name="$1"
+              ;;
+            --dir)
+              shift
+              download_dir="$1"
+              ;;
+          esac
+          shift
+        done
+        test "$download_name" = "\(githubArtifact.name)"
+        test -n "$download_dir"
+        mkdir -p "$download_dir"
+        \(writeArtifactBlock)
+        exit 0
+      fi
+      """
+    } else {
+      fakeGitHubArtifactBlock = ""
+    }
     fakeGitHubRunBlock = """
 
     if [[ "$1" == "gh" && "$2" == "run" && "$3" == "view" && "$4" == "\(githubRun.id)" ]]; then
       printf '%s\\t%s\\t%s\\n' "\(runHead)" "\(githubRun.status)" "\(githubRun.conclusion)"
       exit 0
     fi
+    \(fakeGitHubArtifactBlock)
     """
   } else {
     fakeGitHubRunBlock = ""
@@ -1338,7 +1544,8 @@ private func writeReleaseManifest(
   sha256: String? = nil,
   sizeBytes: Int? = nil,
   githubRepository: String? = nil,
-  githubRunID: String? = nil
+  githubRunID: String? = nil,
+  githubArtifactName: String? = nil
 ) throws {
   let manifest = archive.deletingPathExtension().appendingPathExtension("manifest")
   let resolvedArchiveName = archiveName ?? archive.lastPathComponent
@@ -1356,12 +1563,14 @@ private func writeReleaseManifest(
   }
   let githubFields: String
   if let githubRepository, let githubRunID {
+    let artifactFields = githubArtifactName.map { "github_artifact_name=\($0)\n" } ?? ""
     githubFields = """
     github_repository=\(githubRepository)
     github_run_id=\(githubRunID)
     github_run_attempt=1
     github_workflow=CI
     github_server_url=https://github.com
+    \(artifactFields)
     """
   } else {
     githubFields = ""

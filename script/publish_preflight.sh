@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<USAGE
 Usage:
-  script/publish_preflight.sh [--tag vX.Y.Z --archive path/to/Flowline-X.Y.Z.zip [--require-ci]]
+  script/publish_preflight.sh [--tag vX.Y.Z --archive path/to/Flowline-X.Y.Z.zip [--require-ci] [--require-artifact]]
 
 Checks that the current git repository has a clean tree, no high-risk secret
 patterns in the worktree or reachable history, and a reachable GitHub origin.
@@ -13,6 +13,8 @@ Optional:
   --tag vX.Y.Z     Also verify that the release tag does not already exist.
   --archive PATH   Require a non-empty Flowline-X.Y.Z.zip archive and matching manifest.
   --require-ci     Require the manifest to point at a successful GitHub Actions run for HEAD.
+  --require-artifact
+                   Download the manifest's GitHub Actions artifact and verify its archive hash.
 USAGE
 }
 
@@ -48,6 +50,26 @@ github_run_metadata() {
     --repo "$repo" \
     --json headSha,status,conclusion \
     --jq '.headSha + "\t" + .status + "\t" + (.conclusion // "")'
+}
+
+github_run_download_artifact() {
+  local repo="$1"
+  local run_id="$2"
+  local artifact_name="$3"
+  local destination="$4"
+
+  if command -v rtk >/dev/null 2>&1; then
+    rtk gh run download "$run_id" \
+      --repo "$repo" \
+      --name "$artifact_name" \
+      --dir "$destination"
+    return
+  fi
+
+  gh run download "$run_id" \
+    --repo "$repo" \
+    --name "$artifact_name" \
+    --dir "$destination"
 }
 
 origin_head_sha() {
@@ -177,7 +199,9 @@ release_manifest=""
 release_manifest_git_commit=""
 release_manifest_github_repository=""
 release_manifest_github_run_id=""
+release_manifest_github_artifact_name=""
 require_ci=false
+require_artifact=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tag)
@@ -192,6 +216,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --require-ci)
       require_ci=true
+      ;;
+    --require-artifact)
+      require_artifact=true
       ;;
     --help|-h)
       usage
@@ -217,6 +244,10 @@ fi
 
 if [[ "$require_ci" == true && -z "$release_tag" ]]; then
   fail "--require-ci requires --tag and --archive"
+fi
+
+if [[ "$require_artifact" == true && "$require_ci" != true ]]; then
+  fail "--require-artifact requires --require-ci"
 fi
 
 if [[ -n "$release_tag" ]]; then
@@ -263,6 +294,7 @@ if [[ -n "$release_tag" ]]; then
   release_manifest_git_commit="$(require_manifest_value git_commit "$release_manifest")"
   release_manifest_github_repository="$(manifest_value github_repository "$release_manifest" || true)"
   release_manifest_github_run_id="$(manifest_value github_run_id "$release_manifest" || true)"
+  release_manifest_github_artifact_name="$(manifest_value github_artifact_name "$release_manifest" || true)"
 fi
 
 if [[ -n "$(git status --short)" ]]; then
@@ -307,6 +339,25 @@ if [[ "$require_ci" == true ]]; then
 
   if [[ "$run_head" != "$local_head" ]]; then
     fail "GitHub Actions run head does not match HEAD: expected $local_head, found $run_head"
+  fi
+
+  if [[ "$require_artifact" == true ]]; then
+    if [[ -z "$release_manifest_github_artifact_name" || "$release_manifest_github_artifact_name" == "unknown" ]]; then
+      fail "release manifest does not identify a GitHub Actions artifact"
+    fi
+
+    download_dir="$(mktemp -d)"
+    trap 'rm -rf "$download_dir"' EXIT
+    github_run_download_artifact "$repo" "$release_manifest_github_run_id" "$release_manifest_github_artifact_name" "$download_dir" \
+      || fail "unable to download GitHub Actions artifact: $release_manifest_github_artifact_name"
+
+    downloaded_archive="$(find "$download_dir" -type f -name "$release_archive_name" -print -quit)"
+    [[ -n "$downloaded_archive" && -f "$downloaded_archive" ]] \
+      || fail "downloaded GitHub Actions artifact does not contain release archive: $release_archive_name"
+
+    downloaded_sha256="$(archive_sha256 "$downloaded_archive")"
+    [[ "$downloaded_sha256" == "$actual_sha256" ]] \
+      || fail "downloaded GitHub Actions artifact sha256 does not match archive: expected $actual_sha256, found $downloaded_sha256"
   fi
 fi
 

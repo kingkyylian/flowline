@@ -99,6 +99,9 @@ script/publish_preflight.sh --tag v0.1.0 --archive dist/release/Flowline-0.1.0.z
 Release tag preflight also requires the manifest generated next to the archive,
 for example `dist/release/Flowline-0.1.0.manifest`, and `--require-ci` verifies
 the manifest points at a successful GitHub Actions run for the same commit.
+For archives uploaded by GitHub Actions, set `GITHUB_ARTIFACT_NAME` during
+packaging and add `--require-artifact`; preflight downloads that artifact and
+checks its `Flowline-X.Y.Z.zip` hash against the local archive before tagging.
 
 ## Release
 
