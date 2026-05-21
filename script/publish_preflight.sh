@@ -351,9 +351,15 @@ if [[ "$require_ci" == true ]]; then
     github_run_download_artifact "$repo" "$release_manifest_github_run_id" "$release_manifest_github_artifact_name" "$download_dir" \
       || fail "unable to download GitHub Actions artifact: $release_manifest_github_artifact_name"
 
-    downloaded_archive="$(find "$download_dir" -type f -name "$release_archive_name" -print -quit)"
-    [[ -n "$downloaded_archive" && -f "$downloaded_archive" ]] \
-      || fail "downloaded GitHub Actions artifact does not contain release archive: $release_archive_name"
+    downloaded_archives="$(find "$download_dir" -type f -name "$release_archive_name" -print | sort)"
+    downloaded_archive_count="$(printf '%s\n' "$downloaded_archives" | sed '/^$/d' | wc -l | tr -d ' ')"
+    if [[ "$downloaded_archive_count" == "0" ]]; then
+      fail "downloaded GitHub Actions artifact does not contain release archive: $release_archive_name"
+    fi
+    if [[ "$downloaded_archive_count" != "1" ]]; then
+      fail "downloaded GitHub Actions artifact contains multiple release archives named $release_archive_name"
+    fi
+    downloaded_archive="$downloaded_archives"
 
     downloaded_sha256="$(archive_sha256 "$downloaded_archive")"
     [[ "$downloaded_sha256" == "$actual_sha256" ]] \

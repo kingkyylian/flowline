@@ -1084,6 +1084,44 @@ import Testing
   #expect(result.output.contains("downloaded GitHub Actions artifact sha256 does not match archive"))
 }
 
+@Test func publishPreflightRejectsCIManifestWhenDownloadedArtifactHasAmbiguousArchives() throws {
+  let runID = "1234567890"
+  let artifactName = "flowline-release-1.2.3"
+  let fixture = try releasePreflightFixture(
+    githubRun: .init(
+      id: runID,
+      head: "",
+      status: "completed",
+      conclusion: "success"
+    ),
+    githubArtifact: .init(
+      name: artifactName,
+      archiveName: "Flowline-1.2.3.zip",
+      contents: "archive\n",
+      duplicateContents: "archive\n"
+    )
+  )
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(
+    for: archive,
+    version: "1.2.3",
+    gitCommit: fixture.head,
+    githubRepository: "kingkyylian/flowline",
+    githubRunID: runID,
+    githubArtifactName: artifactName
+  )
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path, "--require-ci", "--require-artifact"],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("downloaded GitHub Actions artifact contains multiple release archives named Flowline-1.2.3.zip"))
+}
+
 @Test func publishPreflightAcceptsCIManifestWhenDownloadedArtifactMatchesArchive() throws {
   let runID = "1234567890"
   let artifactName = "flowline-release-1.2.3"
@@ -1605,6 +1643,19 @@ private struct FakeGitHubArtifact {
   let name: String
   let archiveName: String
   let contents: String?
+  let duplicateContents: String?
+
+  init(
+    name: String,
+    archiveName: String,
+    contents: String?,
+    duplicateContents: String? = nil
+  ) {
+    self.name = name
+    self.archiveName = archiveName
+    self.contents = contents
+    self.duplicateContents = duplicateContents
+  }
 }
 
 private func releasePreflightFixture(
@@ -1641,6 +1692,15 @@ private func releasePreflightFixture(
       } else {
         writeArtifactBlock = ""
       }
+      let writeDuplicateArtifactBlock: String
+      if let duplicateContents = githubArtifact.duplicateContents {
+        writeDuplicateArtifactBlock = """
+        mkdir -p "$download_dir/duplicate"
+        printf '%s' "\(duplicateContents)" > "$download_dir/duplicate/\(githubArtifact.archiveName)"
+        """
+      } else {
+        writeDuplicateArtifactBlock = ""
+      }
       fakeGitHubArtifactBlock = """
 
       if [[ "$1" == "gh" && "$2" == "run" && "$3" == "download" && "$4" == "\(githubRun.id)" ]]; then
@@ -1663,6 +1723,7 @@ private func releasePreflightFixture(
         test -n "$download_dir"
         mkdir -p "$download_dir"
         \(writeArtifactBlock)
+        \(writeDuplicateArtifactBlock)
         exit 0
       fi
       """
