@@ -52,20 +52,32 @@ require_developer_id_identity() {
 
 notary_credentials_are_configured() {
   has_nonblank_value "${FLOWLINE_NOTARY_PROFILE:-}" \
-    || {
-      has_nonblank_value "${APPLE_ID:-}" \
-        && has_nonblank_value "${APPLE_TEAM_ID:-}" \
-        && has_nonblank_value "${APPLE_APP_SPECIFIC_PASSWORD:-}"
-    }
+    || apple_id_notary_credentials_are_configured
 }
 
 has_nonblank_value() {
   [[ "$1" =~ [^[:space:]] ]]
 }
 
+apple_id_notary_credentials_are_configured() {
+  has_nonblank_value "${APPLE_ID:-}" \
+    && has_nonblank_value "${APPLE_TEAM_ID:-}" \
+    && has_nonblank_value "${APPLE_APP_SPECIFIC_PASSWORD:-}"
+}
+
+apple_team_id_is_valid() {
+  [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]
+}
+
 require_notary_credentials() {
   if ! notary_credentials_are_configured; then
     echo "error: notarization requires FLOWLINE_NOTARY_PROFILE or Apple ID credentials." >&2
+    exit 2
+  fi
+
+  if ! has_nonblank_value "${FLOWLINE_NOTARY_PROFILE:-}" && ! apple_team_id_is_valid; then
+    echo "error: APPLE_TEAM_ID is invalid: $APPLE_TEAM_ID" >&2
+    echo "       Use the 10-character Apple Developer Team ID." >&2
     exit 2
   fi
 }
@@ -189,9 +201,7 @@ ditto -c -k --keepParent "$BUNDLE_PATH" "$ZIP_PATH"
 if [[ "$MODE" == "--notarize" ]]; then
   if has_nonblank_value "${FLOWLINE_NOTARY_PROFILE:-}"; then
     xcrun notarytool submit "$ZIP_PATH" --keychain-profile "$FLOWLINE_NOTARY_PROFILE" --wait
-  elif has_nonblank_value "${APPLE_ID:-}" \
-    && has_nonblank_value "${APPLE_TEAM_ID:-}" \
-    && has_nonblank_value "${APPLE_APP_SPECIFIC_PASSWORD:-}"; then
+  elif apple_id_notary_credentials_are_configured && apple_team_id_is_valid; then
     xcrun notarytool submit "$ZIP_PATH" \
       --apple-id "$APPLE_ID" \
       --team-id "$APPLE_TEAM_ID" \
