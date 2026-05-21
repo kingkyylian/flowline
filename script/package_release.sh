@@ -51,8 +51,16 @@ require_developer_id_identity() {
 }
 
 notary_credentials_are_configured() {
-  [[ -n "${FLOWLINE_NOTARY_PROFILE:-}" ]] \
-    || [[ -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]
+  has_nonblank_value "${FLOWLINE_NOTARY_PROFILE:-}" \
+    || {
+      has_nonblank_value "${APPLE_ID:-}" \
+        && has_nonblank_value "${APPLE_TEAM_ID:-}" \
+        && has_nonblank_value "${APPLE_APP_SPECIFIC_PASSWORD:-}"
+    }
+}
+
+has_nonblank_value() {
+  [[ "$1" =~ [^[:space:]] ]]
 }
 
 require_notary_credentials() {
@@ -179,9 +187,11 @@ codesign --verify --deep --strict --verbose=2 "$BUNDLE_PATH"
 ditto -c -k --keepParent "$BUNDLE_PATH" "$ZIP_PATH"
 
 if [[ "$MODE" == "--notarize" ]]; then
-  if [[ -n "${FLOWLINE_NOTARY_PROFILE:-}" ]]; then
+  if has_nonblank_value "${FLOWLINE_NOTARY_PROFILE:-}"; then
     xcrun notarytool submit "$ZIP_PATH" --keychain-profile "$FLOWLINE_NOTARY_PROFILE" --wait
-  elif [[ -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]; then
+  elif has_nonblank_value "${APPLE_ID:-}" \
+    && has_nonblank_value "${APPLE_TEAM_ID:-}" \
+    && has_nonblank_value "${APPLE_APP_SPECIFIC_PASSWORD:-}"; then
     xcrun notarytool submit "$ZIP_PATH" \
       --apple-id "$APPLE_ID" \
       --team-id "$APPLE_TEAM_ID" \
