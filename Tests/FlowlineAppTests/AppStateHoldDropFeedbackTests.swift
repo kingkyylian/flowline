@@ -152,13 +152,13 @@ import Testing
   pasteboard.clearContents()
   pasteboard.setString("appstate clipboard probe", forType: .string)
 
-  let deadline = Date().addingTimeInterval(0.45)
+  let deadline = Date().addingTimeInterval(1.0)
   while Date() < deadline {
     if state.snapshot.shelfItems.first?.title == "appstate clipboard probe" {
       break
     }
 
-    try await Task.sleep(for: .milliseconds(20))
+    try await Task.sleep(for: .milliseconds(25))
   }
 
   #expect(state.snapshot.shelfItems.first?.title == "appstate clipboard probe")

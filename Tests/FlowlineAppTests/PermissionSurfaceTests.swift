@@ -280,102 +280,36 @@ import Testing
 }
 
 @Test func releaseArchiveLintsPlistAndBuildsBundleWithMetadata() throws {
-  let project = try temporaryDirectory()
-  let fakeBin = try temporaryDirectory()
-  let scriptDirectory = project.appendingPathComponent("script", isDirectory: true)
-  let resourcesDirectory = project.appendingPathComponent("Resources", isDirectory: true)
-  try FileManager.default.createDirectory(at: scriptDirectory, withIntermediateDirectories: true)
-  try FileManager.default.createDirectory(at: resourcesDirectory, withIntermediateDirectories: true)
-
-  let sourceScript = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-    .appendingPathComponent("script/package_release.sh")
-  let packageScript = scriptDirectory.appendingPathComponent("package_release.sh")
-  try FileManager.default.copyItem(at: sourceScript, to: packageScript)
-  try Data([0x69, 0x63, 0x6e, 0x73]).write(
-    to: resourcesDirectory.appendingPathComponent("Flowline.icns")
-  )
-
-  let identity = "Developer ID Application: Flowline Test (TEAM123456)"
+  let fixture = try ReleasePackagingFixture()
   let bundleID = "dev.kyylian.flowline.tests"
   let version = "1.2.3"
   let build = "4.5.6"
-  let plutilMarker = fakeBin.appendingPathComponent("plutil-args")
-  let codesignMarker = fakeBin.appendingPathComponent("codesign-args")
+  let plutilMarker = fixture.fakeBin.appendingPathComponent("plutil-args")
+  let codesignMarker = fixture.fakeBin.appendingPathComponent("codesign-args")
 
-  let fakeSecurity = fakeBin.appendingPathComponent("security")
-  try """
-  #!/usr/bin/env bash
-  echo '  1) ABCDEF123456 "\(identity)"'
-  """.write(to: fakeSecurity, atomically: true, encoding: .utf8)
-  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSecurity.path)
+  try fixture.installPlutil(marker: plutilMarker)
+  try fixture.installCodesign(marker: codesignMarker)
+  let result = try fixture.runPackageRelease(
+    "--archive",
+    environment: [
+      "FLOWLINE_BUNDLE_ID": bundleID,
+      "FLOWLINE_VERSION": version,
+      "FLOWLINE_BUILD": build
+    ]
+  )
 
-  let fakeSwift = fakeBin.appendingPathComponent("swift")
-  try """
-  #!/usr/bin/env bash
-  mkdir -p .build/release
-  printf '#!/usr/bin/env bash\\n' > .build/release/Flowline
-  chmod +x .build/release/Flowline
-  """.write(to: fakeSwift, atomically: true, encoding: .utf8)
-  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSwift.path)
-
-  let fakePlutil = fakeBin.appendingPathComponent("plutil")
-  try """
-  #!/usr/bin/env bash
-  printf '%s\\n' "$@" > "\(plutilMarker.path)"
-  test "$1" = "-lint"
-  test -f "$2"
-  """.write(to: fakePlutil, atomically: true, encoding: .utf8)
-  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakePlutil.path)
-
-  let fakeCodesign = fakeBin.appendingPathComponent("codesign")
-  try """
-  #!/usr/bin/env bash
-  printf 'call\\n' >> "\(codesignMarker.path)"
-  for arg in "$@"; do printf '%s\\n' "$arg" >> "\(codesignMarker.path)"; done
-  """.write(to: fakeCodesign, atomically: true, encoding: .utf8)
-  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeCodesign.path)
-
-  let fakeDitto = fakeBin.appendingPathComponent("ditto")
-  try """
-  #!/usr/bin/env bash
-  destination=""
-  for arg in "$@"; do destination="$arg"; done
-  touch "$destination"
-  """.write(to: fakeDitto, atomically: true, encoding: .utf8)
-  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeDitto.path)
-
-  let process = Process()
-  process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-  process.arguments = ["bash", packageScript.path, "--archive"]
-  process.currentDirectoryURL = project
-  process.environment = [
-    "PATH": "\(fakeBin.path):/usr/bin:/bin:/usr/sbin:/sbin",
-    "FLOWLINE_DEVELOPER_ID_IDENTITY": identity,
-    "FLOWLINE_BUNDLE_ID": bundleID,
-    "FLOWLINE_VERSION": version,
-    "FLOWLINE_BUILD": build
-  ]
-
-  let outputPipe = Pipe()
-  process.standardOutput = outputPipe
-  process.standardError = outputPipe
-
-  try process.run()
-  process.waitUntilExit()
-
-  let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-  let bundle = project.appendingPathComponent("dist/release/Flowline.app", isDirectory: true)
+  let bundle = fixture.bundle
   let plistURL = bundle.appendingPathComponent("Contents/Info.plist")
   let plistData = try Data(contentsOf: plistURL)
   let plist = try PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any]
 
-  #expect(process.terminationStatus == 0)
-  #expect(output.contains("Release archive: \(project.path)/dist/release/Flowline-\(version).zip"))
+  #expect(result.status == 0)
+  #expect(result.output.contains("Release archive: \(fixture.zipPath(version: version).path)"))
   #expect(FileManager.default.fileExists(atPath: plutilMarker.path))
   #expect((try String(contentsOf: plutilMarker, encoding: .utf8)).contains(plistURL.path))
-  #expect((try String(contentsOf: codesignMarker, encoding: .utf8)).contains(identity))
+  #expect((try String(contentsOf: codesignMarker, encoding: .utf8)).contains(fixture.identity))
   #expect(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("Contents/MacOS/Flowline").path))
-  #expect(FileManager.default.fileExists(atPath: project.appendingPathComponent("dist/release/Flowline-\(version).zip").path))
+  #expect(FileManager.default.fileExists(atPath: fixture.zipPath(version: version).path))
   #expect(plist?["CFBundleIdentifier"] as? String == bundleID)
   #expect(plist?["CFBundleShortVersionString"] as? String == version)
   #expect(plist?["CFBundleVersion"] as? String == build)
@@ -383,132 +317,75 @@ import Testing
 }
 
 @Test func notarizedReleaseAssessesStapledBundleBeforeFinalZip() throws {
-  let project = try temporaryDirectory()
-  let fakeBin = try temporaryDirectory()
-  let scriptDirectory = project.appendingPathComponent("script", isDirectory: true)
-  let resourcesDirectory = project.appendingPathComponent("Resources", isDirectory: true)
-  try FileManager.default.createDirectory(at: scriptDirectory, withIntermediateDirectories: true)
-  try FileManager.default.createDirectory(at: resourcesDirectory, withIntermediateDirectories: true)
-
-  let sourceScript = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-    .appendingPathComponent("script/package_release.sh")
-  let packageScript = scriptDirectory.appendingPathComponent("package_release.sh")
-  try FileManager.default.copyItem(at: sourceScript, to: packageScript)
-  try Data([0x69, 0x63, 0x6e, 0x73]).write(
-    to: resourcesDirectory.appendingPathComponent("Flowline.icns")
-  )
-
-  let identity = "Developer ID Application: Flowline Test (TEAM123456)"
+  let fixture = try ReleasePackagingFixture()
   let version = "2.0.0"
   let notaryProfile = "flowline-notary-test"
-  let eventsMarker = fakeBin.appendingPathComponent("release-events")
-  let bundle = project.appendingPathComponent("dist/release/Flowline.app", isDirectory: true)
-  let zipPath = project.appendingPathComponent("dist/release/Flowline-\(version).zip")
 
-  let fakeSecurity = fakeBin.appendingPathComponent("security")
-  try """
-  #!/usr/bin/env bash
-  echo '  1) ABCDEF123456 "\(identity)"'
-  """.write(to: fakeSecurity, atomically: true, encoding: .utf8)
-  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSecurity.path)
+  try fixture.installDitto(recordEvents: true)
+  try fixture.installXcrunForProfileNotarization(version: version, notaryProfile: notaryProfile)
+  try fixture.installSpctl()
 
-  let fakeSwift = fakeBin.appendingPathComponent("swift")
-  try """
-  #!/usr/bin/env bash
-  mkdir -p .build/release
-  printf '#!/usr/bin/env bash\\n' > .build/release/Flowline
-  chmod +x .build/release/Flowline
-  """.write(to: fakeSwift, atomically: true, encoding: .utf8)
-  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSwift.path)
+  let result = try fixture.runPackageRelease(
+    "--notarize",
+    environment: [
+      "FLOWLINE_VERSION": version,
+      "FLOWLINE_NOTARY_PROFILE": notaryProfile
+    ]
+  )
 
-  let fakePlutil = fakeBin.appendingPathComponent("plutil")
-  try """
-  #!/usr/bin/env bash
-  test "$1" = "-lint"
-  test -f "$2"
-  """.write(to: fakePlutil, atomically: true, encoding: .utf8)
-  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakePlutil.path)
-
-  let fakeCodesign = fakeBin.appendingPathComponent("codesign")
-  try """
-  #!/usr/bin/env bash
-  exit 0
-  """.write(to: fakeCodesign, atomically: true, encoding: .utf8)
-  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeCodesign.path)
-
-  let fakeDitto = fakeBin.appendingPathComponent("ditto")
-  try """
-  #!/usr/bin/env bash
-  destination=""
-  for arg in "$@"; do destination="$arg"; done
-  printf 'ditto %s\\n' "$destination" >> "\(eventsMarker.path)"
-  touch "$destination"
-  """.write(to: fakeDitto, atomically: true, encoding: .utf8)
-  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeDitto.path)
-
-  let fakeXcrun = fakeBin.appendingPathComponent("xcrun")
-  try """
-  #!/usr/bin/env bash
-  printf 'xcrun %s\\n' "$*" >> "\(eventsMarker.path)"
-  if [[ "$1" == "notarytool" ]]; then
-    test "$2" = "submit"
-    test "$3" = "\(zipPath.path)"
-    test "$4" = "--keychain-profile"
-    test "$5" = "\(notaryProfile)"
-    test "$6" = "--wait"
-    test -f "$3"
-  elif [[ "$1" == "stapler" ]]; then
-    test "$2" = "staple"
-    test "$3" = "\(bundle.path)"
-    test -d "$3"
-  else
-    exit 88
-  fi
-  """.write(to: fakeXcrun, atomically: true, encoding: .utf8)
-  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeXcrun.path)
-
-  let fakeSpctl = fakeBin.appendingPathComponent("spctl")
-  try """
-  #!/usr/bin/env bash
-  printf 'spctl %s\\n' "$*" >> "\(eventsMarker.path)"
-  test "$1" = "--assess"
-  test "$2" = "--type"
-  test "$3" = "execute"
-  test "$4" = "--verbose"
-  test "$5" = "\(bundle.path)"
-  test -d "$5"
-  """.write(to: fakeSpctl, atomically: true, encoding: .utf8)
-  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSpctl.path)
-
-  let process = Process()
-  process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-  process.arguments = ["bash", packageScript.path, "--notarize"]
-  process.currentDirectoryURL = project
-  process.environment = [
-    "PATH": "\(fakeBin.path):/usr/bin:/bin:/usr/sbin:/sbin",
-    "FLOWLINE_DEVELOPER_ID_IDENTITY": identity,
-    "FLOWLINE_VERSION": version,
-    "FLOWLINE_NOTARY_PROFILE": notaryProfile
-  ]
-
-  let outputPipe = Pipe()
-  process.standardOutput = outputPipe
-  process.standardError = outputPipe
-
-  try process.run()
-  process.waitUntilExit()
-
-  let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-  let events = try String(contentsOf: eventsMarker, encoding: .utf8)
+  let zipPath = fixture.zipPath(version: version)
+  let events = try String(contentsOf: fixture.eventsMarker, encoding: .utf8)
   let eventLines = events.split(separator: "\n").map(String.init)
 
-  #expect(process.terminationStatus == 0)
-  #expect(output.contains("Release archive: \(zipPath.path)"))
+  #expect(result.status == 0)
+  #expect(result.output.contains("Release archive: \(zipPath.path)"))
   #expect(eventLines == [
     "ditto \(zipPath.path)",
     "xcrun notarytool submit \(zipPath.path) --keychain-profile \(notaryProfile) --wait",
-    "xcrun stapler staple \(bundle.path)",
-    "spctl --assess --type execute --verbose \(bundle.path)",
+    "xcrun stapler staple \(fixture.bundle.path)",
+    "spctl --assess --type execute --verbose \(fixture.bundle.path)",
+    "ditto \(zipPath.path)"
+  ])
+  #expect(FileManager.default.fileExists(atPath: zipPath.path))
+}
+
+@Test func notarizedReleaseSubmitsAppleIDCredentialsWhenProfileIsNotConfigured() throws {
+  let fixture = try ReleasePackagingFixture()
+  let version = "2.1.0"
+  let appleID = "developer@example.invalid"
+  let teamID = "TEAM123456"
+  let appSpecificPassword = "not-a-real-password"
+
+  try fixture.installDitto(recordEvents: true)
+  try fixture.installXcrunForAppleIDNotarization(
+    version: version,
+    appleID: appleID,
+    teamID: teamID,
+    password: appSpecificPassword
+  )
+  try fixture.installSpctl()
+
+  let result = try fixture.runPackageRelease(
+    "--notarize",
+    environment: [
+      "FLOWLINE_VERSION": version,
+      "APPLE_ID": appleID,
+      "APPLE_TEAM_ID": teamID,
+      "APPLE_APP_SPECIFIC_PASSWORD": appSpecificPassword
+    ]
+  )
+
+  let zipPath = fixture.zipPath(version: version)
+  let events = try String(contentsOf: fixture.eventsMarker, encoding: .utf8)
+  let eventLines = events.split(separator: "\n").map(String.init)
+
+  #expect(result.status == 0)
+  #expect(result.output.contains("Release archive: \(zipPath.path)"))
+  #expect(eventLines == [
+    "ditto \(zipPath.path)",
+    "xcrun notarytool submit \(zipPath.path) --apple-id \(appleID) --team-id \(teamID) --password \(appSpecificPassword) --wait",
+    "xcrun stapler staple \(fixture.bundle.path)",
+    "spctl --assess --type execute --verbose \(fixture.bundle.path)",
     "ditto \(zipPath.path)"
   ])
   #expect(FileManager.default.fileExists(atPath: zipPath.path))
@@ -683,6 +560,226 @@ import Testing
 private struct ProcessResult {
   let status: Int32
   let output: String
+}
+
+private struct ReleasePackagingFixture {
+  let project: URL
+  let fakeBin: URL
+  let packageScript: URL
+  let identity = "Developer ID Application: Flowline Test (TEAM123456)"
+  let eventsMarker: URL
+
+  var bundle: URL {
+    project.appendingPathComponent("dist/release/Flowline.app", isDirectory: true)
+  }
+
+  init() throws {
+    project = try temporaryDirectory()
+    fakeBin = try temporaryDirectory()
+    eventsMarker = fakeBin.appendingPathComponent("release-events")
+
+    let scriptDirectory = project.appendingPathComponent("script", isDirectory: true)
+    let resourcesDirectory = project.appendingPathComponent("Resources", isDirectory: true)
+    try FileManager.default.createDirectory(at: scriptDirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: resourcesDirectory, withIntermediateDirectories: true)
+
+    let sourceScript = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+      .appendingPathComponent("script/package_release.sh")
+    packageScript = scriptDirectory.appendingPathComponent("package_release.sh")
+    try FileManager.default.copyItem(at: sourceScript, to: packageScript)
+    try Data([0x69, 0x63, 0x6e, 0x73]).write(
+      to: resourcesDirectory.appendingPathComponent("Flowline.icns")
+    )
+
+    try installSecurity()
+    try installSwiftBuild()
+    try installPlutil()
+    try installCodesign()
+    try installDitto()
+  }
+
+  func zipPath(version: String) -> URL {
+    project.appendingPathComponent("dist/release/Flowline-\(version).zip")
+  }
+
+  func installDitto(recordEvents: Bool = false) throws {
+    let eventLine = recordEvents
+      ? "printf 'ditto %s\\n' \"$destination\" >> \"\(eventsMarker.path)\""
+      : ""
+
+    try installExecutable(
+      named: "ditto",
+      contents: """
+      #!/usr/bin/env bash
+      destination=""
+      for arg in "$@"; do destination="$arg"; done
+      \(eventLine)
+      touch "$destination"
+      """
+    )
+  }
+
+  func installXcrunForProfileNotarization(version: String, notaryProfile: String) throws {
+    let zipPath = zipPath(version: version)
+
+    try installExecutable(
+      named: "xcrun",
+      contents: """
+      #!/usr/bin/env bash
+      printf 'xcrun %s\\n' "$*" >> "\(eventsMarker.path)"
+      if [[ "$1" == "notarytool" ]]; then
+        test "$2" = "submit"
+        test "$3" = "\(zipPath.path)"
+        test "$4" = "--keychain-profile"
+        test "$5" = "\(notaryProfile)"
+        test "$6" = "--wait"
+        test -f "$3"
+      elif [[ "$1" == "stapler" ]]; then
+        test "$2" = "staple"
+        test "$3" = "\(bundle.path)"
+        test -d "$3"
+      else
+        exit 88
+      fi
+      """
+    )
+  }
+
+  func installXcrunForAppleIDNotarization(
+    version: String,
+    appleID: String,
+    teamID: String,
+    password: String
+  ) throws {
+    let zipPath = zipPath(version: version)
+
+    try installExecutable(
+      named: "xcrun",
+      contents: """
+      #!/usr/bin/env bash
+      printf 'xcrun %s\\n' "$*" >> "\(eventsMarker.path)"
+      if [[ "$1" == "notarytool" ]]; then
+        test "$2" = "submit"
+        test "$3" = "\(zipPath.path)"
+        test "$4" = "--apple-id"
+        test "$5" = "\(appleID)"
+        test "$6" = "--team-id"
+        test "$7" = "\(teamID)"
+        test "$8" = "--password"
+        test "$9" = "\(password)"
+        test "${10}" = "--wait"
+        test -f "$3"
+      elif [[ "$1" == "stapler" ]]; then
+        test "$2" = "staple"
+        test "$3" = "\(bundle.path)"
+        test -d "$3"
+      else
+        exit 88
+      fi
+      """
+    )
+  }
+
+  func installSpctl() throws {
+    try installExecutable(
+      named: "spctl",
+      contents: """
+      #!/usr/bin/env bash
+      printf 'spctl %s\\n' "$*" >> "\(eventsMarker.path)"
+      test "$1" = "--assess"
+      test "$2" = "--type"
+      test "$3" = "execute"
+      test "$4" = "--verbose"
+      test "$5" = "\(bundle.path)"
+      test -d "$5"
+      """
+    )
+  }
+
+  func runPackageRelease(
+    _ mode: String,
+    environment overrides: [String: String] = [:]
+  ) throws -> ProcessResult {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["bash", packageScript.path, mode]
+    process.currentDirectoryURL = project
+
+    var environment = [
+      "PATH": "\(fakeBin.path):/usr/bin:/bin:/usr/sbin:/sbin",
+      "FLOWLINE_DEVELOPER_ID_IDENTITY": identity
+    ]
+    for (key, value) in overrides {
+      environment[key] = value
+    }
+    process.environment = environment
+
+    let outputPipe = Pipe()
+    process.standardOutput = outputPipe
+    process.standardError = outputPipe
+
+    try process.run()
+    process.waitUntilExit()
+
+    let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+    return ProcessResult(status: process.terminationStatus, output: output)
+  }
+
+  private func installSecurity() throws {
+    try installExecutable(
+      named: "security",
+      contents: """
+      #!/usr/bin/env bash
+      echo '  1) ABCDEF123456 "\(identity)"'
+      """
+    )
+  }
+
+  private func installSwiftBuild() throws {
+    try installExecutable(
+      named: "swift",
+      contents: """
+      #!/usr/bin/env bash
+      mkdir -p .build/release
+      printf '#!/usr/bin/env bash\\n' > .build/release/Flowline
+      chmod +x .build/release/Flowline
+      """
+    )
+  }
+
+  func installPlutil(marker: URL? = nil) throws {
+    let eventLine = marker
+      .map { "printf '%s\\n' \"$@\" > \"\($0.path)\"" } ?? ""
+
+    try installExecutable(
+      named: "plutil",
+      contents: """
+      #!/usr/bin/env bash
+      \(eventLine)
+      test "$1" = "-lint"
+      test -f "$2"
+      """
+    )
+  }
+
+  func installCodesign(marker: URL? = nil) throws {
+    let eventLine = marker
+      .map { "printf 'call\\n' >> \"\($0.path)\"\nfor arg in \"$@\"; do printf '%s\\n' \"$arg\" >> \"\($0.path)\"; done" } ?? ""
+
+    try installExecutable(
+      named: "codesign",
+      contents: """
+      #!/usr/bin/env bash
+      \(eventLine)
+      """
+    )
+  }
+
+  private func installExecutable(named name: String, contents: String) throws {
+    let executable = fakeBin.appendingPathComponent(name)
+    try contents.write(to: executable, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+  }
 }
 
 private func assertSecretScanRejects(
