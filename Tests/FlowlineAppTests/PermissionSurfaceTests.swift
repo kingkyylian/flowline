@@ -500,10 +500,12 @@ import Testing
   exit 99
   """.write(to: fakeRTK, atomically: true, encoding: .utf8)
   try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeRTK.path)
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
 
   let result = try runPublishPreflight(
     in: repository,
-    arguments: ["--tag", tag],
+    arguments: ["--tag", tag, "--archive", archive.path],
     pathPrefix: fakeBin.path
   )
 
@@ -579,15 +581,89 @@ import Testing
   exit 2
   """.write(to: fakeRTK, atomically: true, encoding: .utf8)
   try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeRTK.path)
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
 
   let result = try runPublishPreflight(
     in: repository,
-    arguments: ["--tag", tag],
+    arguments: ["--tag", tag, "--archive", archive.path],
     pathPrefix: fakeBin.path
   )
 
   #expect(result.status == 2)
   #expect(result.output.contains("release tag already exists locally: \(tag)"))
+}
+
+@Test func publishPreflightRequiresReleaseArchiveWhenTagIsProvided() throws {
+  let fixture = try releasePreflightFixture()
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("release archive is required when using --tag"))
+}
+
+@Test func publishPreflightRejectsReleaseArchiveThatDoesNotMatchTag() throws {
+  let fixture = try releasePreflightFixture()
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.4.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("release archive does not match tag: expected Flowline-1.2.3.zip"))
+}
+
+@Test func publishPreflightRejectsEmptyReleaseArchive() throws {
+  let fixture = try releasePreflightFixture()
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try Data().write(to: archive)
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("release archive is empty: \(archive.path)"))
+}
+
+@Test func publishPreflightAcceptsMatchingReleaseArchiveForReleaseTag() throws {
+  let fixture = try releasePreflightFixture()
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 0)
+  #expect(result.output.contains("Publish preflight passed for kingkyylian/flowline"))
+}
+
+@Test func publishPreflightRejectsReleaseArchiveWithoutReleaseTag() throws {
+  let repository = try temporaryGitRepository()
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+
+  let result = try runPublishPreflight(
+    in: repository,
+    arguments: ["--archive", archive.path]
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("--archive requires --tag"))
 }
 
 @Test func secretScanRejectsGoogleOAuthClientSecretsBeforePublish() throws {
@@ -967,6 +1043,47 @@ private func assertSecretScanRejects(
   #expect(result.output.contains(expectedLabel))
   #expect(result.output.contains("Probe.swift"))
   #expect(!result.output.contains(leakedValue))
+}
+
+private struct ReleasePreflightFixture {
+  let repository: URL
+  let tag: String
+  let fakeBin: URL
+}
+
+private func releasePreflightFixture(tag: String = "v1.2.3") throws -> ReleasePreflightFixture {
+  let repository = try temporaryGitRepository()
+  let source = repository.appendingPathComponent("Probe.swift")
+  try "let released = true\n".write(to: source, atomically: true, encoding: .utf8)
+  try runProcess("/usr/bin/git", ["add", "Probe.swift"], in: repository)
+  try runProcess(
+    "/usr/bin/git",
+    ["-c", "user.name=Flowline Tests", "-c", "user.email=tests@example.invalid", "commit", "-m", "Release commit"],
+    in: repository
+  )
+  let head = try runProcess("/usr/bin/git", ["rev-parse", "HEAD"], in: repository)
+    .output
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+  try runProcess("/usr/bin/git", ["remote", "add", "origin", "https://github.com/kingkyylian/flowline.git"], in: repository)
+
+  let fakeBin = try temporaryDirectory()
+  let fakeRTK = fakeBin.appendingPathComponent("rtk")
+  try """
+  #!/usr/bin/env bash
+  if [[ "$1" == "git" && "$2" == "ls-remote" && "$3" == "--exit-code" && "$4" == "origin" && "$5" == "HEAD" ]]; then
+    printf '%s\\tHEAD\\n' "\(head)"
+    exit 0
+  fi
+
+  if [[ "$1" == "git" && "$2" == "ls-remote" && "$3" == "--exit-code" && "$4" == "--tags" && "$5" == "origin" && "$6" == "refs/tags/\(tag)" ]]; then
+    exit 2
+  fi
+
+  exit 99
+  """.write(to: fakeRTK, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeRTK.path)
+
+  return ReleasePreflightFixture(repository: repository, tag: tag, fakeBin: fakeBin)
 }
 
 private func runPublishPreflight(

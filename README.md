@@ -93,7 +93,7 @@ script/publish_preflight.sh
 Before creating a release tag, include the intended version tag:
 
 ```bash
-script/publish_preflight.sh --tag v0.1.0
+script/publish_preflight.sh --tag v0.1.0 --archive dist/release/Flowline-0.1.0.zip
 ```
 
 ## Release

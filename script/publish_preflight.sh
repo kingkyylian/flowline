@@ -4,13 +4,14 @@ set -euo pipefail
 usage() {
   cat <<USAGE
 Usage:
-  script/publish_preflight.sh [--tag vX.Y.Z]
+  script/publish_preflight.sh [--tag vX.Y.Z --archive path/to/Flowline-X.Y.Z.zip]
 
 Checks that the current git repository has a clean tree, no high-risk secret
 patterns in the worktree or reachable history, and a reachable GitHub origin.
 
 Optional:
-  --tag vX.Y.Z   Also verify that the release tag does not already exist.
+  --tag vX.Y.Z     Also verify that the release tag does not already exist.
+  --archive PATH   Require a non-empty Flowline-X.Y.Z.zip archive matching --tag.
 USAGE
 }
 
@@ -55,6 +56,15 @@ origin_tag_exists() {
 
 release_tag_is_valid() {
   [[ "$1" =~ ^v[0-9]+(\.[0-9]+){0,2}$ ]]
+}
+
+release_archive_matches_tag() {
+  local archive="$1"
+  local tag="$2"
+  local expected_name="Flowline-${tag#v}.zip"
+  local archive_name="${archive##*/}"
+
+  [[ "$archive_name" == "$expected_name" ]]
 }
 
 local_tag_exists() {
@@ -106,12 +116,18 @@ github_repo_from_url() {
 }
 
 release_tag=""
+release_archive=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tag)
       shift
       [[ $# -gt 0 ]] || fail "--tag requires a value"
       release_tag="$1"
+      ;;
+    --archive)
+      shift
+      [[ $# -gt 0 ]] || fail "--archive requires a value"
+      release_archive="$1"
       ;;
     --help|-h)
       usage
@@ -129,6 +145,21 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail "not inside a git re
 
 if [[ -n "$release_tag" ]] && ! release_tag_is_valid "$release_tag"; then
   fail "release tag is invalid: $release_tag"
+fi
+
+if [[ -n "$release_archive" && -z "$release_tag" ]]; then
+  fail "--archive requires --tag"
+fi
+
+if [[ -n "$release_tag" ]]; then
+  [[ -n "$release_archive" ]] || fail "release archive is required when using --tag"
+
+  expected_archive_name="Flowline-${release_tag#v}.zip"
+  release_archive_matches_tag "$release_archive" "$release_tag" \
+    || fail "release archive does not match tag: expected $expected_archive_name"
+
+  [[ -f "$release_archive" ]] || fail "release archive does not exist: $release_archive"
+  [[ -s "$release_archive" ]] || fail "release archive is empty: $release_archive"
 fi
 
 if [[ -n "$(git status --short)" ]]; then
