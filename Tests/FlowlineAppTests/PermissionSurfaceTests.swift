@@ -152,6 +152,8 @@ import Testing
     encoding: .utf8
   )
 
+  #expect(workflow.contains("test(\"^flowline-release-v[0-9]+(\\\\.[0-9]+){0,2}$\")"))
+  #expect(!workflow.contains("startswith(\"flowline-release-v\")"))
   #expect(workflow.contains("artifact_count=\"$(printf '%s\\n' \"$artifact_names\" | sed '/^$/d' | wc -l | tr -d ' ')\""))
   #expect(workflow.contains("if [[ \"$artifact_count\" != \"1\" ]]"))
   #expect(workflow.contains("Expected exactly one release candidate artifact for run $CANDIDATE_RUN_ID"))
