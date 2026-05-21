@@ -69,6 +69,10 @@ jobs:
             exit 2
           fi
 
+      - name: Run publish preflight
+        shell: bash
+        run: script/publish_preflight.sh
+
       - name: Validate release secrets
         shell: bash
         env:
