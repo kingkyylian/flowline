@@ -68,6 +68,20 @@ import Testing
   #expect(!workflow.contains("--require-ci --require-artifact"))
 }
 
+@Test func releaseCandidateWorkflowImportsDeveloperIDPrivateKeyWithScopedToolAccess() throws {
+  let workflow = try String(
+    contentsOfFile: ".github/workflows/release-candidate.yml",
+    encoding: .utf8
+  )
+
+  #expect(workflow.contains("security import \"$CERTIFICATE_PATH\""))
+  #expect(workflow.contains("-f pkcs12"))
+  #expect(workflow.contains("-T /usr/bin/codesign"))
+  #expect(workflow.contains("-T /usr/bin/security"))
+  #expect(!workflow.contains("-t cert"))
+  #expect(!workflow.contains("            -A"))
+}
+
 @Test func releaseCandidateVerifyWorkflowRunsArtifactPreflightAfterCandidateCompletes() throws {
   let workflow = try String(
     contentsOfFile: ".github/workflows/release-candidate-verify.yml",
