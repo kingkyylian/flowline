@@ -82,6 +82,21 @@ import Testing
   #expect(!workflow.contains("            -A"))
 }
 
+@Test func releaseCandidateWorkflowRejectsExistingTagBeforeUsingReleaseSecrets() throws {
+  let workflow = try String(
+    contentsOfFile: ".github/workflows/release-candidate.yml",
+    encoding: .utf8
+  )
+  let tagPreflightRange = try #require(workflow.range(of: "- name: Preflight release tag"))
+  let secretValidationRange = try #require(workflow.range(of: "- name: Validate release secrets"))
+
+  #expect(tagPreflightRange.lowerBound < secretValidationRange.lowerBound)
+  #expect(workflow.contains("git rev-parse -q --verify \"refs/tags/$RELEASE_TAG\""))
+  #expect(workflow.contains("git ls-remote --exit-code --tags origin \"refs/tags/$RELEASE_TAG\""))
+  #expect(workflow.contains("Release tag already exists locally: $RELEASE_TAG"))
+  #expect(workflow.contains("Release tag already exists on origin: $RELEASE_TAG"))
+}
+
 @Test func releaseCandidateVerifyWorkflowRunsArtifactPreflightAfterCandidateCompletes() throws {
   let workflow = try String(
     contentsOfFile: ".github/workflows/release-candidate-verify.yml",
