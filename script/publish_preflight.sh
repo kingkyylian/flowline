@@ -27,11 +27,23 @@ gh_view_repo() {
   gh repo view "$repo" --json nameWithOwner,url --jq .nameWithOwner
 }
 
+origin_head_sha() {
+  local output
+
+  if command -v rtk >/dev/null 2>&1; then
+    output="$(rtk git ls-remote --exit-code origin HEAD)" || return 1
+  else
+    output="$(git ls-remote --exit-code origin HEAD 2>/dev/null)" || return 1
+  fi
+
+  printf '%s\n' "${output%%[[:space:]]*}"
+}
+
 remote_is_reachable() {
   local repo="$1"
 
   if command -v rtk >/dev/null 2>&1; then
-    rtk git ls-remote --exit-code origin HEAD
+    origin_head_sha >/dev/null
     return
   fi
 
@@ -97,5 +109,11 @@ repo="$(github_repo_from_url "$origin_url")" || fail "origin remote is not a Git
 
 remote_is_reachable "$repo" \
   || fail "GitHub repository is not reachable: $repo"
+
+local_head="$(git rev-parse HEAD)" || fail "unable to resolve local HEAD"
+remote_head="$(origin_head_sha)" || fail "unable to resolve origin HEAD for $repo"
+if [[ "$local_head" != "$remote_head" ]]; then
+  fail "local HEAD is not pushed to origin: local $local_head, origin $remote_head"
+fi
 
 echo "Publish preflight passed for $repo"

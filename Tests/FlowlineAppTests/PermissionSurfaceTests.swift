@@ -421,6 +421,52 @@ import Testing
   #expect(result.output.contains("GitHub repository is not reachable: example/missing-flowline"))
 }
 
+@Test func publishPreflightFailsWhenLocalHeadIsNotPushedToOrigin() throws {
+  let repository = try temporaryGitRepository()
+  let source = repository.appendingPathComponent("Probe.swift")
+  try "let first = true\n".write(to: source, atomically: true, encoding: .utf8)
+  try runProcess("/usr/bin/git", ["add", "Probe.swift"], in: repository)
+  try runProcess(
+    "/usr/bin/git",
+    ["-c", "user.name=Flowline Tests", "-c", "user.email=tests@example.invalid", "commit", "-m", "First commit"],
+    in: repository
+  )
+  let remoteHead = try runProcess("/usr/bin/git", ["rev-parse", "HEAD"], in: repository)
+    .output
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+  try "let first = false\n".write(to: source, atomically: true, encoding: .utf8)
+  try runProcess("/usr/bin/git", ["add", "Probe.swift"], in: repository)
+  try runProcess(
+    "/usr/bin/git",
+    ["-c", "user.name=Flowline Tests", "-c", "user.email=tests@example.invalid", "commit", "-m", "Second commit"],
+    in: repository
+  )
+  try runProcess("/usr/bin/git", ["remote", "add", "origin", "https://github.com/kingkyylian/flowline.git"], in: repository)
+
+  let fakeBin = try temporaryDirectory()
+  let fakeRTK = fakeBin.appendingPathComponent("rtk")
+  try """
+  #!/usr/bin/env bash
+  if [[ "$1" == "git" && "$2" == "ls-remote" && "$3" == "--exit-code" && "$4" == "origin" && "$5" == "HEAD" ]]; then
+    printf '%s\\tHEAD\\n' "\(remoteHead)"
+    exit 0
+  fi
+
+  exit 99
+  """.write(to: fakeRTK, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeRTK.path)
+
+  let result = try runPublishPreflight(
+    in: repository,
+    pathPrefix: fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("local HEAD is not pushed to origin"))
+  #expect(result.output.contains(remoteHead))
+}
+
 @Test func secretScanRejectsGoogleOAuthClientSecretsBeforePublish() throws {
   let repository = try temporaryGitRepository()
   let source = repository.appendingPathComponent("Probe.swift")
