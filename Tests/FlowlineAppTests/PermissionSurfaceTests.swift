@@ -310,6 +310,16 @@ import Testing
   #expect((try String(contentsOf: codesignMarker, encoding: .utf8)).contains(fixture.identity))
   #expect(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("Contents/MacOS/Flowline").path))
   #expect(FileManager.default.fileExists(atPath: fixture.zipPath(version: version).path))
+  let manifest = try String(contentsOf: fixture.manifestPath(version: version), encoding: .utf8)
+  #expect(manifest.contains("flowline_release_manifest=1"))
+  #expect(manifest.contains("archive_name=Flowline-\(version).zip"))
+  #expect(manifest.contains("version=\(version)"))
+  #expect(manifest.contains("build=\(build)"))
+  #expect(manifest.contains("bundle_id=\(bundleID)"))
+  #expect(manifest.contains("git_commit=unknown"))
+  #expect(manifest.contains("sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"))
+  #expect(manifest.contains("size_bytes=0"))
+  #expect(manifest.contains("notarized=false"))
   #expect(plist?["CFBundleIdentifier"] as? String == bundleID)
   #expect(plist?["CFBundleShortVersionString"] as? String == version)
   #expect(plist?["CFBundleVersion"] as? String == build)
@@ -502,6 +512,7 @@ import Testing
   try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeRTK.path)
   let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
   try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(for: archive, version: "1.2.3", gitCommit: head)
 
   let result = try runPublishPreflight(
     in: repository,
@@ -583,6 +594,7 @@ import Testing
   try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeRTK.path)
   let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
   try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(for: archive, version: "1.2.3", gitCommit: head)
 
   let result = try runPublishPreflight(
     in: repository,
@@ -641,6 +653,7 @@ import Testing
   let fixture = try releasePreflightFixture()
   let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
   try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(for: archive, version: "1.2.3", gitCommit: fixture.head)
 
   let result = try runPublishPreflight(
     in: fixture.repository,
@@ -650,6 +663,75 @@ import Testing
 
   #expect(result.status == 0)
   #expect(result.output.contains("Publish preflight passed for kingkyylian/flowline"))
+}
+
+@Test func publishPreflightRequiresReleaseManifestForReleaseArchive() throws {
+  let fixture = try releasePreflightFixture()
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("release manifest does not exist"))
+}
+
+@Test func publishPreflightRejectsReleaseManifestVersionMismatch() throws {
+  let fixture = try releasePreflightFixture()
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(for: archive, version: "1.2.4", gitCommit: fixture.head)
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("release manifest version does not match tag: expected 1.2.3, found 1.2.4"))
+}
+
+@Test func publishPreflightRejectsReleaseManifestGitCommitMismatch() throws {
+  let fixture = try releasePreflightFixture()
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(for: archive, version: "1.2.3", gitCommit: String(repeating: "0", count: 40))
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("release manifest git commit does not match HEAD"))
+  #expect(result.output.contains(fixture.head))
+}
+
+@Test func publishPreflightRejectsReleaseManifestChecksumMismatch() throws {
+  let fixture = try releasePreflightFixture()
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(
+    for: archive,
+    version: "1.2.3",
+    gitCommit: fixture.head,
+    sha256: String(repeating: "0", count: 64)
+  )
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("release manifest sha256 does not match archive"))
 }
 
 @Test func publishPreflightRejectsReleaseArchiveWithoutReleaseTag() throws {
@@ -845,6 +927,10 @@ private struct ReleasePackagingFixture {
 
   func zipPath(version: String) -> URL {
     project.appendingPathComponent("dist/release/Flowline-\(version).zip")
+  }
+
+  func manifestPath(version: String) -> URL {
+    project.appendingPathComponent("dist/release/Flowline-\(version).manifest")
   }
 
   func installDitto(recordEvents: Bool = false) throws {
@@ -1048,6 +1134,7 @@ private func assertSecretScanRejects(
 private struct ReleasePreflightFixture {
   let repository: URL
   let tag: String
+  let head: String
   let fakeBin: URL
 }
 
@@ -1083,7 +1170,61 @@ private func releasePreflightFixture(tag: String = "v1.2.3") throws -> ReleasePr
   """.write(to: fakeRTK, atomically: true, encoding: .utf8)
   try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeRTK.path)
 
-  return ReleasePreflightFixture(repository: repository, tag: tag, fakeBin: fakeBin)
+  return ReleasePreflightFixture(repository: repository, tag: tag, head: head, fakeBin: fakeBin)
+}
+
+private func writeReleaseManifest(
+  for archive: URL,
+  version: String,
+  gitCommit: String,
+  archiveName: String? = nil,
+  sha256: String? = nil,
+  sizeBytes: Int? = nil
+) throws {
+  let manifest = archive.deletingPathExtension().appendingPathExtension("manifest")
+  let resolvedArchiveName = archiveName ?? archive.lastPathComponent
+  let resolvedSHA256: String
+  if let sha256 {
+    resolvedSHA256 = sha256
+  } else {
+    resolvedSHA256 = try releaseArchiveSHA256(archive)
+  }
+  let resolvedSizeBytes: Int
+  if let sizeBytes {
+    resolvedSizeBytes = sizeBytes
+  } else {
+    resolvedSizeBytes = try releaseArchiveSizeBytes(archive)
+  }
+
+  try """
+  flowline_release_manifest=1
+  archive_name=\(resolvedArchiveName)
+  version=\(version)
+  build=1
+  bundle_id=dev.kyylian.flowline.tests
+  git_commit=\(gitCommit)
+  sha256=\(resolvedSHA256)
+  size_bytes=\(resolvedSizeBytes)
+  notarized=false
+  """.write(to: manifest, atomically: true, encoding: .utf8)
+}
+
+private func releaseArchiveSHA256(_ archive: URL) throws -> String {
+  let result = try runProcess(
+    "/usr/bin/shasum",
+    ["-a", "256", archive.path],
+    in: archive.deletingLastPathComponent()
+  )
+  return result
+  .output
+  .split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "\n" })
+  .first
+  .map(String.init) ?? ""
+}
+
+private func releaseArchiveSizeBytes(_ archive: URL) throws -> Int {
+  let attributes = try FileManager.default.attributesOfItem(atPath: archive.path)
+  return (attributes[.size] as? NSNumber)?.intValue ?? 0
 }
 
 private func runPublishPreflight(

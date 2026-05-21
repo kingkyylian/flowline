@@ -96,6 +96,9 @@ Before creating a release tag, include the intended version tag:
 script/publish_preflight.sh --tag v0.1.0 --archive dist/release/Flowline-0.1.0.zip
 ```
 
+Release tag preflight also requires the manifest generated next to the archive,
+for example `dist/release/Flowline-0.1.0.manifest`.
+
 ## Release
 
 Local debug bundles are built with `script/build_and_run.sh`. Distributable

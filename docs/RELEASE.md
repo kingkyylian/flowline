@@ -65,4 +65,6 @@ script/publish_preflight.sh --tag v0.1.0 --archive dist/release/Flowline-0.1.0.z
 
 Use the release version for the tag value. The tag preflight rejects invalid
 release tag names, tags that already exist locally or on `origin`, and missing,
-mismatched, or empty release archives.
+mismatched, or empty release archives. It also requires the manifest generated
+next to the archive, for example `dist/release/Flowline-0.1.0.manifest`, and
+verifies the manifest version, archive name, checksum, size, and git commit.

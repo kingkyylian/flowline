@@ -11,7 +11,7 @@ patterns in the worktree or reachable history, and a reachable GitHub origin.
 
 Optional:
   --tag vX.Y.Z     Also verify that the release tag does not already exist.
-  --archive PATH   Require a non-empty Flowline-X.Y.Z.zip archive matching --tag.
+  --archive PATH   Require a non-empty Flowline-X.Y.Z.zip archive and matching manifest.
 USAGE
 }
 
@@ -67,6 +67,43 @@ release_archive_matches_tag() {
   [[ "$archive_name" == "$expected_name" ]]
 }
 
+archive_sha256() {
+  local output
+  output="$(shasum -a 256 "$1")"
+  printf '%s\n' "${output%%[[:space:]]*}"
+}
+
+archive_size_bytes() {
+  stat -f%z "$1" 2>/dev/null || stat -c%s "$1"
+}
+
+manifest_value() {
+  local key="$1"
+  local manifest="$2"
+  local line
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      "$key="*)
+        printf '%s\n' "${line#*=}"
+        return 0
+        ;;
+    esac
+  done < "$manifest"
+
+  return 1
+}
+
+require_manifest_value() {
+  local key="$1"
+  local manifest="$2"
+  local value
+
+  value="$(manifest_value "$key" "$manifest")" \
+    || fail "release manifest missing $key: $manifest"
+  printf '%s\n' "$value"
+}
+
 local_tag_exists() {
   git rev-parse -q --verify "refs/tags/$1" >/dev/null
 }
@@ -117,6 +154,8 @@ github_repo_from_url() {
 
 release_tag=""
 release_archive=""
+release_manifest=""
+release_manifest_git_commit=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tag)
@@ -155,11 +194,44 @@ if [[ -n "$release_tag" ]]; then
   [[ -n "$release_archive" ]] || fail "release archive is required when using --tag"
 
   expected_archive_name="Flowline-${release_tag#v}.zip"
+  release_archive_name="${release_archive##*/}"
   release_archive_matches_tag "$release_archive" "$release_tag" \
     || fail "release archive does not match tag: expected $expected_archive_name"
 
   [[ -f "$release_archive" ]] || fail "release archive does not exist: $release_archive"
   [[ -s "$release_archive" ]] || fail "release archive is empty: $release_archive"
+
+  release_manifest="${release_archive%.zip}.manifest"
+  [[ -f "$release_manifest" ]] || fail "release manifest does not exist: $release_manifest"
+
+  manifest_format="$(require_manifest_value flowline_release_manifest "$release_manifest")"
+  [[ "$manifest_format" == "1" ]] \
+    || fail "release manifest format is unsupported: $manifest_format"
+
+  manifest_archive_name="$(require_manifest_value archive_name "$release_manifest")"
+  [[ "$manifest_archive_name" == "$release_archive_name" ]] \
+    || fail "release manifest archive name does not match archive: expected $release_archive_name, found $manifest_archive_name"
+
+  manifest_version="$(require_manifest_value version "$release_manifest")"
+  expected_version="${release_tag#v}"
+  [[ "$manifest_version" == "$expected_version" ]] \
+    || fail "release manifest version does not match tag: expected $expected_version, found $manifest_version"
+
+  manifest_sha256="$(require_manifest_value sha256 "$release_manifest")"
+  [[ "$manifest_sha256" =~ ^[A-Fa-f0-9]{64}$ ]] \
+    || fail "release manifest sha256 is invalid: $manifest_sha256"
+  actual_sha256="$(archive_sha256 "$release_archive")"
+  [[ "$manifest_sha256" == "$actual_sha256" ]] \
+    || fail "release manifest sha256 does not match archive: expected $actual_sha256, found $manifest_sha256"
+
+  manifest_size_bytes="$(require_manifest_value size_bytes "$release_manifest")"
+  [[ "$manifest_size_bytes" =~ ^[0-9]+$ ]] \
+    || fail "release manifest size_bytes is invalid: $manifest_size_bytes"
+  actual_size_bytes="$(archive_size_bytes "$release_archive")"
+  [[ "$manifest_size_bytes" == "$actual_size_bytes" ]] \
+    || fail "release manifest size_bytes does not match archive: expected $actual_size_bytes, found $manifest_size_bytes"
+
+  release_manifest_git_commit="$(require_manifest_value git_commit "$release_manifest")"
 fi
 
 if [[ -n "$(git status --short)" ]]; then
@@ -178,6 +250,10 @@ local_head="$(git rev-parse HEAD)" || fail "unable to resolve local HEAD"
 remote_head="$(origin_head_sha)" || fail "unable to resolve origin HEAD for $repo"
 if [[ "$local_head" != "$remote_head" ]]; then
   fail "local HEAD is not pushed to origin: local $local_head, origin $remote_head"
+fi
+
+if [[ -n "$release_tag" && "$release_manifest_git_commit" != "$local_head" ]]; then
+  fail "release manifest git commit does not match HEAD: expected $local_head, found $release_manifest_git_commit"
 fi
 
 if [[ -n "$release_tag" ]] && local_tag_exists "$release_tag"; then

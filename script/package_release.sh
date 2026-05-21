@@ -7,6 +7,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RELEASE_DIR="$ROOT_DIR/dist/release"
 BUNDLE_PATH="$RELEASE_DIR/$APP_NAME.app"
 ZIP_PATH="$RELEASE_DIR/$APP_NAME-${FLOWLINE_VERSION:-0.1.0}.zip"
+MANIFEST_PATH="${ZIP_PATH%.zip}.manifest"
 EXECUTABLE_PATH="$ROOT_DIR/.build/release/$PRODUCT_NAME"
 ICON_PATH="$ROOT_DIR/Resources/Flowline.icns"
 
@@ -105,6 +106,44 @@ require_release_metadata() {
   fi
 }
 
+archive_sha256() {
+  local output
+  output="$(shasum -a 256 "$1")"
+  printf '%s\n' "${output%%[[:space:]]*}"
+}
+
+archive_size_bytes() {
+  stat -f%z "$1" 2>/dev/null || stat -c%s "$1"
+}
+
+release_git_commit() {
+  git rev-parse HEAD 2>/dev/null || printf 'unknown'
+}
+
+write_release_manifest() {
+  local notarized="$1"
+  local archive_name="${ZIP_PATH##*/}"
+  local sha256
+  local size_bytes
+  local git_commit
+
+  sha256="$(archive_sha256 "$ZIP_PATH")"
+  size_bytes="$(archive_size_bytes "$ZIP_PATH")"
+  git_commit="$(release_git_commit)"
+
+  cat > "$MANIFEST_PATH" <<MANIFEST
+flowline_release_manifest=1
+archive_name=$archive_name
+version=$VERSION
+build=$BUILD_NUMBER
+bundle_id=$BUNDLE_ID
+git_commit=$git_commit
+sha256=$sha256
+size_bytes=$size_bytes
+notarized=$notarized
+MANIFEST
+}
+
 case "$MODE" in
   --preflight|--archive|--notarize)
     ;;
@@ -139,7 +178,7 @@ cd "$ROOT_DIR"
 
 swift build -c release
 
-rm -rf "$BUNDLE_PATH" "$ZIP_PATH"
+rm -rf "$BUNDLE_PATH" "$ZIP_PATH" "$MANIFEST_PATH"
 mkdir -p "$BUNDLE_PATH/Contents/MacOS" "$BUNDLE_PATH/Contents/Resources"
 cp "$EXECUTABLE_PATH" "$BUNDLE_PATH/Contents/MacOS/$APP_NAME"
 cp "$ICON_PATH" "$BUNDLE_PATH/Contents/Resources/Flowline.icns"
@@ -197,6 +236,7 @@ codesign --force --deep --options runtime --timestamp --sign "$SIGN_IDENTITY" "$
 codesign --verify --deep --strict --verbose=2 "$BUNDLE_PATH"
 
 ditto -c -k --keepParent "$BUNDLE_PATH" "$ZIP_PATH"
+write_release_manifest false
 
 if [[ "$MODE" == "--notarize" ]]; then
   if has_nonblank_value "${FLOWLINE_NOTARY_PROFILE:-}"; then
@@ -216,6 +256,7 @@ if [[ "$MODE" == "--notarize" ]]; then
   spctl --assess --type execute --verbose "$BUNDLE_PATH"
   rm -f "$ZIP_PATH"
   ditto -c -k --keepParent "$BUNDLE_PATH" "$ZIP_PATH"
+  write_release_manifest true
 fi
 
 echo "Release archive: $ZIP_PATH"
