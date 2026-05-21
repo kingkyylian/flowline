@@ -25,7 +25,7 @@
 
 ## Current State
 
-- `main` and `origin/main` are aligned at `7f75c9fb3e90ee0529b5bd2f62d695549f317f02`.
+- The release hardening implementation is pushed at `7f75c9fb3e90ee0529b5bd2f62d695549f317f02`.
 - Working tree was clean before writing this checkpoint.
 - Release candidate verification now requires exactly one candidate artifact from the triggering run and exactly one `Flowline-*.zip` inside the downloaded artifact.
 - Existing release protections remain in place:
