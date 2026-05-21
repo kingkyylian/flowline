@@ -34,15 +34,19 @@ jobs:
         run: |
           set -euo pipefail
 
-          artifact_name="$(
+          artifact_names="$(
             gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID/artifacts" \
-              --jq '.artifacts[] | select(.name | startswith("flowline-release-v")) | .name' \
-              | head -n 1
+              --jq '.artifacts[] | select(.name | startswith("flowline-release-v")) | .name'
           )"
-          if [[ -z "$artifact_name" ]]; then
-            echo "Release candidate artifact was not found for run $CANDIDATE_RUN_ID" >&2
+          artifact_count="$(printf '%s\n' "$artifact_names" | sed '/^$/d' | wc -l | tr -d ' ')"
+          if [[ "$artifact_count" != "1" ]]; then
+            echo "Expected exactly one release candidate artifact for run $CANDIDATE_RUN_ID, found $artifact_count" >&2
+            if [[ -n "$artifact_names" ]]; then
+              printf '%s\n' "$artifact_names" >&2
+            fi
             exit 2
           fi
+          artifact_name="$artifact_names"
 
           mkdir -p dist/release
           gh run download "$CANDIDATE_RUN_ID" \
@@ -55,11 +59,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          release_archive="$(find dist/release -type f -name 'Flowline-*.zip' -print -quit)"
-          if [[ -z "$release_archive" ]]; then
-            echo "Downloaded artifact does not contain a Flowline release archive" >&2
+          release_archives="$(find dist/release -type f -name 'Flowline-*.zip' -print | sort)"
+          archive_count="$(printf '%s\n' "$release_archives" | sed '/^$/d' | wc -l | tr -d ' ')"
+          if [[ "$archive_count" != "1" ]]; then
+            echo "Expected exactly one Flowline release archive in downloaded artifact, found $archive_count" >&2
+            if [[ -n "$release_archives" ]]; then
+              printf '%s\n' "$release_archives" >&2
+            fi
             exit 2
           fi
+          release_archive="$release_archives"
 
           release_name="${release_archive##*/}"
           release_version="${release_name#Flowline-}"

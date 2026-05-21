@@ -119,6 +119,31 @@ import Testing
   #expect(workflow.contains("GH_TOKEN: ${{ github.token }}"))
 }
 
+@Test func releaseCandidateVerifyWorkflowRejectsAmbiguousCandidateArtifacts() throws {
+  let workflow = try String(
+    contentsOfFile: ".github/workflows/release-candidate-verify.yml",
+    encoding: .utf8
+  )
+
+  #expect(workflow.contains("artifact_count=\"$(printf '%s\\n' \"$artifact_names\" | sed '/^$/d' | wc -l | tr -d ' ')\""))
+  #expect(workflow.contains("if [[ \"$artifact_count\" != \"1\" ]]"))
+  #expect(workflow.contains("Expected exactly one release candidate artifact for run $CANDIDATE_RUN_ID"))
+  #expect(!workflow.contains("| head -n 1"))
+}
+
+@Test func releaseCandidateVerifyWorkflowRejectsAmbiguousDownloadedArchives() throws {
+  let workflow = try String(
+    contentsOfFile: ".github/workflows/release-candidate-verify.yml",
+    encoding: .utf8
+  )
+
+  #expect(workflow.contains("release_archives=\"$(find dist/release -type f -name 'Flowline-*.zip' -print | sort)\""))
+  #expect(workflow.contains("archive_count=\"$(printf '%s\\n' \"$release_archives\" | sed '/^$/d' | wc -l | tr -d ' ')\""))
+  #expect(workflow.contains("if [[ \"$archive_count\" != \"1\" ]]"))
+  #expect(workflow.contains("Expected exactly one Flowline release archive in downloaded artifact"))
+  #expect(!workflow.contains("-print -quit"))
+}
+
 @Test func ciAvoidsProductionCompilerRejectedIsolatedDeinitFlags() throws {
   let workflow = try String(
     contentsOfFile: ".github/workflows/ci.yml",
