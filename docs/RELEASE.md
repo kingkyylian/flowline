@@ -60,4 +60,8 @@ xcrun stapler validate dist/release/Flowline.app
 swift test
 swift build -c release
 git diff --check
+script/publish_preflight.sh --tag v0.1.0
 ```
+
+Use the release version for the tag value. The tag preflight rejects invalid
+release tag names and tags that already exist locally or on `origin`.

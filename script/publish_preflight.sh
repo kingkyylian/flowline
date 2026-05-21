@@ -4,10 +4,13 @@ set -euo pipefail
 usage() {
   cat <<USAGE
 Usage:
-  script/publish_preflight.sh
+  script/publish_preflight.sh [--tag vX.Y.Z]
 
 Checks that the current git repository has a clean tree, no high-risk secret
 patterns in the worktree or reachable history, and a reachable GitHub origin.
+
+Optional:
+  --tag vX.Y.Z   Also verify that the release tag does not already exist.
 USAGE
 }
 
@@ -37,6 +40,25 @@ origin_head_sha() {
   fi
 
   printf '%s\n' "${output%%[[:space:]]*}"
+}
+
+origin_tag_exists() {
+  local tag="$1"
+
+  if command -v rtk >/dev/null 2>&1; then
+    rtk git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null
+    return
+  fi
+
+  git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1
+}
+
+release_tag_is_valid() {
+  [[ "$1" =~ ^v[0-9]+(\.[0-9]+){0,2}$ ]]
+}
+
+local_tag_exists() {
+  git rev-parse -q --verify "refs/tags/$1" >/dev/null
 }
 
 remote_is_reachable() {
@@ -83,20 +105,31 @@ github_repo_from_url() {
   printf '%s/%s\n' "$owner" "$name"
 }
 
-case "${1:-}" in
-  --help|-h)
-    usage
-    exit 0
-    ;;
-  "")
-    ;;
-  *)
-    usage >&2
-    exit 2
-    ;;
-esac
+release_tag=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --tag)
+      shift
+      [[ $# -gt 0 ]] || fail "--tag requires a value"
+      release_tag="$1"
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail "not inside a git repository"
+
+if [[ -n "$release_tag" ]] && ! release_tag_is_valid "$release_tag"; then
+  fail "release tag is invalid: $release_tag"
+fi
 
 if [[ -n "$(git status --short)" ]]; then
   fail "worktree has uncommitted changes; commit or stash before publishing"
@@ -114,6 +147,14 @@ local_head="$(git rev-parse HEAD)" || fail "unable to resolve local HEAD"
 remote_head="$(origin_head_sha)" || fail "unable to resolve origin HEAD for $repo"
 if [[ "$local_head" != "$remote_head" ]]; then
   fail "local HEAD is not pushed to origin: local $local_head, origin $remote_head"
+fi
+
+if [[ -n "$release_tag" ]] && local_tag_exists "$release_tag"; then
+  fail "release tag already exists locally: $release_tag"
+fi
+
+if [[ -n "$release_tag" ]] && origin_tag_exists "$release_tag"; then
+  fail "release tag already exists on origin: $release_tag"
 fi
 
 echo "Publish preflight passed for $repo"

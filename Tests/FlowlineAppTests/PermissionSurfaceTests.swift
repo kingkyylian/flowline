@@ -467,6 +467,129 @@ import Testing
   #expect(result.output.contains(remoteHead))
 }
 
+@Test func publishPreflightFailsWhenReleaseTagAlreadyExistsOnOrigin() throws {
+  let repository = try temporaryGitRepository()
+  let source = repository.appendingPathComponent("Probe.swift")
+  try "let released = true\n".write(to: source, atomically: true, encoding: .utf8)
+  try runProcess("/usr/bin/git", ["add", "Probe.swift"], in: repository)
+  try runProcess(
+    "/usr/bin/git",
+    ["-c", "user.name=Flowline Tests", "-c", "user.email=tests@example.invalid", "commit", "-m", "Release commit"],
+    in: repository
+  )
+  let head = try runProcess("/usr/bin/git", ["rev-parse", "HEAD"], in: repository)
+    .output
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+  let tag = "v1.2.3"
+  try runProcess("/usr/bin/git", ["remote", "add", "origin", "https://github.com/kingkyylian/flowline.git"], in: repository)
+
+  let fakeBin = try temporaryDirectory()
+  let fakeRTK = fakeBin.appendingPathComponent("rtk")
+  try """
+  #!/usr/bin/env bash
+  if [[ "$1" == "git" && "$2" == "ls-remote" && "$3" == "--exit-code" && "$4" == "origin" && "$5" == "HEAD" ]]; then
+    printf '%s\\tHEAD\\n' "\(head)"
+    exit 0
+  fi
+
+  if [[ "$1" == "git" && "$2" == "ls-remote" && "$3" == "--exit-code" && "$4" == "--tags" && "$5" == "origin" && "$6" == "refs/tags/\(tag)" ]]; then
+    printf '%s\\trefs/tags/\(tag)\\n' "\(head)"
+    exit 0
+  fi
+
+  exit 99
+  """.write(to: fakeRTK, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeRTK.path)
+
+  let result = try runPublishPreflight(
+    in: repository,
+    arguments: ["--tag", tag],
+    pathPrefix: fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("release tag already exists on origin: \(tag)"))
+}
+
+@Test func publishPreflightRejectsInvalidReleaseTag() throws {
+  let repository = try temporaryGitRepository()
+  let source = repository.appendingPathComponent("Probe.swift")
+  try "let released = true\n".write(to: source, atomically: true, encoding: .utf8)
+  try runProcess("/usr/bin/git", ["add", "Probe.swift"], in: repository)
+  try runProcess(
+    "/usr/bin/git",
+    ["-c", "user.name=Flowline Tests", "-c", "user.email=tests@example.invalid", "commit", "-m", "Release commit"],
+    in: repository
+  )
+  let head = try runProcess("/usr/bin/git", ["rev-parse", "HEAD"], in: repository)
+    .output
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+  let tag = "1.2.3"
+  try runProcess("/usr/bin/git", ["remote", "add", "origin", "https://github.com/kingkyylian/flowline.git"], in: repository)
+
+  let fakeBin = try temporaryDirectory()
+  let fakeRTK = fakeBin.appendingPathComponent("rtk")
+  try """
+  #!/usr/bin/env bash
+  if [[ "$1" == "git" && "$2" == "ls-remote" && "$3" == "--exit-code" && "$4" == "origin" && "$5" == "HEAD" ]]; then
+    printf '%s\\tHEAD\\n' "\(head)"
+    exit 0
+  fi
+
+  exit 99
+  """.write(to: fakeRTK, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeRTK.path)
+
+  let result = try runPublishPreflight(
+    in: repository,
+    arguments: ["--tag", tag],
+    pathPrefix: fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("release tag is invalid: \(tag)"))
+}
+
+@Test func publishPreflightFailsWhenReleaseTagAlreadyExistsLocally() throws {
+  let repository = try temporaryGitRepository()
+  let source = repository.appendingPathComponent("Probe.swift")
+  try "let released = true\n".write(to: source, atomically: true, encoding: .utf8)
+  try runProcess("/usr/bin/git", ["add", "Probe.swift"], in: repository)
+  try runProcess(
+    "/usr/bin/git",
+    ["-c", "user.name=Flowline Tests", "-c", "user.email=tests@example.invalid", "commit", "-m", "Release commit"],
+    in: repository
+  )
+  let head = try runProcess("/usr/bin/git", ["rev-parse", "HEAD"], in: repository)
+    .output
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+  let tag = "v1.2.3"
+  try runProcess("/usr/bin/git", ["tag", tag], in: repository)
+  try runProcess("/usr/bin/git", ["remote", "add", "origin", "https://github.com/kingkyylian/flowline.git"], in: repository)
+
+  let fakeBin = try temporaryDirectory()
+  let fakeRTK = fakeBin.appendingPathComponent("rtk")
+  try """
+  #!/usr/bin/env bash
+  if [[ "$1" == "git" && "$2" == "ls-remote" && "$3" == "--exit-code" && "$4" == "origin" && "$5" == "HEAD" ]]; then
+    printf '%s\\tHEAD\\n' "\(head)"
+    exit 0
+  fi
+
+  exit 2
+  """.write(to: fakeRTK, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeRTK.path)
+
+  let result = try runPublishPreflight(
+    in: repository,
+    arguments: ["--tag", tag],
+    pathPrefix: fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("release tag already exists locally: \(tag)"))
+}
+
 @Test func secretScanRejectsGoogleOAuthClientSecretsBeforePublish() throws {
   let repository = try temporaryGitRepository()
   let source = repository.appendingPathComponent("Probe.swift")
@@ -846,12 +969,16 @@ private func assertSecretScanRejects(
   #expect(!result.output.contains(leakedValue))
 }
 
-private func runPublishPreflight(in directory: URL, pathPrefix: String? = nil) throws -> ProcessResult {
+private func runPublishPreflight(
+  in directory: URL,
+  arguments: [String] = [],
+  pathPrefix: String? = nil
+) throws -> ProcessResult {
   let script = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
     .appendingPathComponent("script/publish_preflight.sh")
   return try runProcess(
     "/usr/bin/env",
-    ["bash", script.path],
+    ["bash", script.path] + arguments,
     in: directory,
     pathPrefix: pathPrefix
   )
