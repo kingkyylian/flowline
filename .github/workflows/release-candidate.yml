@@ -137,6 +137,12 @@ jobs:
           security default-keychain -d user -s "$KEYCHAIN_PATH"
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
+      - name: Verify release signing identity
+        shell: bash
+        env:
+          FLOWLINE_DEVELOPER_ID_IDENTITY: ${{ secrets.FLOWLINE_DEVELOPER_ID_IDENTITY }}
+        run: script/package_release.sh --preflight
+
       - name: Store notary credentials
         shell: bash
         env:

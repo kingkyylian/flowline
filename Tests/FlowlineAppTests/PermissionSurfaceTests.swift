@@ -109,6 +109,21 @@ import Testing
   #expect(workflow.contains("script/publish_preflight.sh"))
 }
 
+@Test func releaseCandidateWorkflowVerifiesSigningIdentityBeforeUsingNotaryCredentials() throws {
+  let workflow = try String(
+    contentsOfFile: ".github/workflows/release-candidate.yml",
+    encoding: .utf8
+  )
+  let importRange = try #require(workflow.range(of: "- name: Import Developer ID certificate"))
+  let signingPreflightRange = try #require(workflow.range(of: "- name: Verify release signing identity"))
+  let notaryRange = try #require(workflow.range(of: "- name: Store notary credentials"))
+
+  #expect(importRange.lowerBound < signingPreflightRange.lowerBound)
+  #expect(signingPreflightRange.lowerBound < notaryRange.lowerBound)
+  #expect(workflow.contains("FLOWLINE_DEVELOPER_ID_IDENTITY: ${{ secrets.FLOWLINE_DEVELOPER_ID_IDENTITY }}"))
+  #expect(workflow.contains("script/package_release.sh --preflight"))
+}
+
 @Test func releaseCandidateVerifyWorkflowRunsArtifactPreflightAfterCandidateCompletes() throws {
   let workflow = try String(
     contentsOfFile: ".github/workflows/release-candidate-verify.yml",
