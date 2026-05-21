@@ -160,16 +160,29 @@ import Testing
   #expect(!workflow.contains("| head -n 1"))
 }
 
+@Test func releaseCandidateVerifyWorkflowBindsArchiveVersionToArtifactName() throws {
+  let workflow = try String(
+    contentsOfFile: ".github/workflows/release-candidate-verify.yml",
+    encoding: .utf8
+  )
+
+  #expect(workflow.contains("artifact_version=\"${artifact_name#flowline-release-v}\""))
+  #expect(workflow.contains("ARTIFACT_RELEASE_VERSION=$artifact_version"))
+  #expect(workflow.contains("release_archives=\"$(find dist/release -type f -name \"Flowline-$ARTIFACT_RELEASE_VERSION.zip\" -print | sort)\""))
+  #expect(workflow.contains("RELEASE_TAG=v$ARTIFACT_RELEASE_VERSION"))
+  #expect(!workflow.contains("release_version=\"${release_name#Flowline-}\""))
+}
+
 @Test func releaseCandidateVerifyWorkflowRejectsAmbiguousDownloadedArchives() throws {
   let workflow = try String(
     contentsOfFile: ".github/workflows/release-candidate-verify.yml",
     encoding: .utf8
   )
 
-  #expect(workflow.contains("release_archives=\"$(find dist/release -type f -name 'Flowline-*.zip' -print | sort)\""))
+  #expect(workflow.contains("release_archives=\"$(find dist/release -type f -name \"Flowline-$ARTIFACT_RELEASE_VERSION.zip\" -print | sort)\""))
   #expect(workflow.contains("archive_count=\"$(printf '%s\\n' \"$release_archives\" | sed '/^$/d' | wc -l | tr -d ' ')\""))
   #expect(workflow.contains("if [[ \"$archive_count\" != \"1\" ]]"))
-  #expect(workflow.contains("Expected exactly one Flowline release archive in downloaded artifact"))
+  #expect(workflow.contains("Expected exactly one Flowline-$ARTIFACT_RELEASE_VERSION.zip release archive in downloaded artifact"))
   #expect(!workflow.contains("-print -quit"))
 }
 
