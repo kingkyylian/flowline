@@ -199,6 +199,7 @@ release_manifest=""
 release_manifest_git_commit=""
 release_manifest_github_repository=""
 release_manifest_github_run_id=""
+release_manifest_github_workflow=""
 release_manifest_github_artifact_name=""
 require_ci=false
 require_artifact=false
@@ -294,6 +295,7 @@ if [[ -n "$release_tag" ]]; then
   release_manifest_git_commit="$(require_manifest_value git_commit "$release_manifest")"
   release_manifest_github_repository="$(manifest_value github_repository "$release_manifest" || true)"
   release_manifest_github_run_id="$(manifest_value github_run_id "$release_manifest" || true)"
+  release_manifest_github_workflow="$(manifest_value github_workflow "$release_manifest" || true)"
   release_manifest_github_artifact_name="$(manifest_value github_artifact_name "$release_manifest" || true)"
 fi
 
@@ -349,6 +351,11 @@ if [[ "$require_ci" == true ]]; then
     expected_github_artifact_name="flowline-release-$release_tag"
     if [[ "$release_manifest_github_artifact_name" != "$expected_github_artifact_name" ]]; then
       fail "release manifest GitHub artifact name does not match tag: expected $expected_github_artifact_name, found $release_manifest_github_artifact_name"
+    fi
+
+    expected_github_workflow="Release Candidate"
+    if [[ "$release_manifest_github_workflow" != "$expected_github_workflow" ]]; then
+      fail "release manifest GitHub workflow does not match release candidate workflow: expected $expected_github_workflow, found ${release_manifest_github_workflow:-unknown}"
     fi
 
     download_dir="$(mktemp -d)"
