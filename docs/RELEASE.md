@@ -107,7 +107,8 @@ script/publish_preflight.sh --tag v0.1.0 --archive dist/release/Flowline-0.1.0.z
 ```
 
 `--require-artifact` downloads that artifact from the manifest's workflow run
-and requires the manifest to come from the `Release Candidate` workflow with an
-artifact name matching `flowline-release-vX.Y.Z`, and requires the manifest to
-be marked `notarized=true` before verifying the downloaded `Flowline-X.Y.Z.zip`
-hash and `Flowline-X.Y.Z.manifest` content match the files being tagged.
+and requires both the manifest and GitHub run metadata to come from the
+`Release Candidate` workflow with an artifact name matching
+`flowline-release-vX.Y.Z`, and requires the manifest to be marked
+`notarized=true` before verifying the downloaded `Flowline-X.Y.Z.zip` hash and
+`Flowline-X.Y.Z.manifest` content match the files being tagged.

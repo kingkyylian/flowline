@@ -41,15 +41,15 @@ github_run_metadata() {
   if command -v rtk >/dev/null 2>&1; then
     rtk gh run view "$run_id" \
       --repo "$repo" \
-      --json headSha,status,conclusion \
-      --jq '.headSha + "\t" + .status + "\t" + (.conclusion // "")'
+      --json headSha,status,conclusion,workflowName \
+      --jq '.headSha + "\t" + .status + "\t" + (.conclusion // "") + "\t" + (.workflowName // "")'
     return
   fi
 
   gh run view "$run_id" \
     --repo "$repo" \
-    --json headSha,status,conclusion \
-    --jq '.headSha + "\t" + .status + "\t" + (.conclusion // "")'
+    --json headSha,status,conclusion,workflowName \
+    --jq '.headSha + "\t" + .status + "\t" + (.conclusion // "") + "\t" + (.workflowName // "")'
 }
 
 github_run_download_artifact() {
@@ -335,7 +335,7 @@ if [[ "$require_ci" == true ]]; then
 
   run_metadata="$(github_run_metadata "$repo" "$release_manifest_github_run_id")" \
     || fail "unable to fetch GitHub Actions run: $release_manifest_github_run_id"
-  IFS=$'\t' read -r run_head run_status run_conclusion <<< "$run_metadata"
+  IFS=$'\t' read -r run_head run_status run_conclusion run_workflow <<< "$run_metadata"
 
   if [[ "$run_status" != "completed" || "$run_conclusion" != "success" ]]; then
     fail "GitHub Actions run did not succeed: $run_status $run_conclusion"
@@ -358,6 +358,10 @@ if [[ "$require_ci" == true ]]; then
     expected_github_workflow="Release Candidate"
     if [[ "$release_manifest_github_workflow" != "$expected_github_workflow" ]]; then
       fail "release manifest GitHub workflow does not match release candidate workflow: expected $expected_github_workflow, found ${release_manifest_github_workflow:-unknown}"
+    fi
+
+    if [[ "$run_workflow" != "$expected_github_workflow" ]]; then
+      fail "GitHub Actions run workflow does not match release candidate workflow: expected $expected_github_workflow, found ${run_workflow:-unknown}"
     fi
 
     if [[ "$release_manifest_notarized" != "true" ]]; then

@@ -1087,6 +1087,46 @@ import Testing
   #expect(result.output.contains("release manifest GitHub workflow does not match release candidate workflow: expected Release Candidate, found CI"))
 }
 
+@Test func publishPreflightRejectsCIArtifactWhenWorkflowRunIsNotReleaseCandidate() throws {
+  let runID = "1234567890"
+  let artifactName = "flowline-release-v1.2.3"
+  let fixture = try releasePreflightFixture(
+    githubRun: .init(
+      id: runID,
+      head: "",
+      status: "completed",
+      conclusion: "success",
+      workflowName: "CI"
+    ),
+    githubArtifact: .init(
+      name: artifactName,
+      archiveName: "Flowline-1.2.3.zip",
+      contents: "archive\n"
+    )
+  )
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(
+    for: archive,
+    version: "1.2.3",
+    gitCommit: fixture.head,
+    githubRepository: "kingkyylian/flowline",
+    githubRunID: runID,
+    githubWorkflow: "Release Candidate",
+    notarized: "true",
+    githubArtifactName: artifactName
+  )
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path, "--require-ci", "--require-artifact"],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("GitHub Actions run workflow does not match release candidate workflow: expected Release Candidate, found CI"))
+}
+
 @Test func publishPreflightRejectsCIManifestWhenArtifactIsNotNotarized() throws {
   let runID = "1234567890"
   let artifactName = "flowline-release-v1.2.3"
@@ -1095,7 +1135,8 @@ import Testing
       id: runID,
       head: "",
       status: "completed",
-      conclusion: "success"
+      conclusion: "success",
+      workflowName: "Release Candidate"
     ),
     githubArtifact: .init(
       name: artifactName,
@@ -1133,7 +1174,8 @@ import Testing
       id: runID,
       head: "",
       status: "completed",
-      conclusion: "success"
+      conclusion: "success",
+      workflowName: "Release Candidate"
     ),
     githubArtifact: .init(
       name: artifactName,
@@ -1173,7 +1215,8 @@ import Testing
       id: runID,
       head: "",
       status: "completed",
-      conclusion: "success"
+      conclusion: "success",
+      workflowName: "Release Candidate"
     ),
     githubArtifact: .init(
       name: artifactName,
@@ -1218,7 +1261,8 @@ import Testing
       id: runID,
       head: "",
       status: "completed",
-      conclusion: "success"
+      conclusion: "success",
+      workflowName: "Release Candidate"
     ),
     githubArtifact: .init(
       name: artifactName,
@@ -1257,7 +1301,8 @@ import Testing
       id: runID,
       head: "",
       status: "completed",
-      conclusion: "success"
+      conclusion: "success",
+      workflowName: "Release Candidate"
     ),
     githubArtifact: .init(
       name: artifactName,
@@ -1296,7 +1341,8 @@ import Testing
       id: runID,
       head: "",
       status: "completed",
-      conclusion: "success"
+      conclusion: "success",
+      workflowName: "Release Candidate"
     ),
     githubArtifact: .init(
       name: artifactName,
@@ -1336,7 +1382,8 @@ import Testing
       id: runID,
       head: "",
       status: "completed",
-      conclusion: "success"
+      conclusion: "success",
+      workflowName: "Release Candidate"
     ),
     githubArtifact: .init(
       name: artifactName,
@@ -1845,6 +1892,21 @@ private struct FakeGitHubRun {
   let head: String
   let status: String
   let conclusion: String
+  let workflowName: String
+
+  init(
+    id: String,
+    head: String,
+    status: String,
+    conclusion: String,
+    workflowName: String = "CI"
+  ) {
+    self.id = id
+    self.head = head
+    self.status = status
+    self.conclusion = conclusion
+    self.workflowName = workflowName
+  }
 }
 
 private struct FakeGitHubArtifact {
@@ -1988,7 +2050,17 @@ private func releasePreflightFixture(
     fakeGitHubRunBlock = """
 
     if [[ "$1" == "gh" && "$2" == "run" && "$3" == "view" && "$4" == "\(githubRun.id)" ]]; then
-      printf '%s\\t%s\\t%s\\n' "\(runHead)" "\(githubRun.status)" "\(githubRun.conclusion)"
+      includes_workflow=false
+      for arg in "$@"; do
+        if [[ "$arg" == *workflowName* ]]; then
+          includes_workflow=true
+        fi
+      done
+      if [[ "$includes_workflow" == true ]]; then
+        printf '%s\\t%s\\t%s\\t%s\\n' "\(runHead)" "\(githubRun.status)" "\(githubRun.conclusion)" "\(githubRun.workflowName)"
+      else
+        printf '%s\\t%s\\t%s\\n' "\(runHead)" "\(githubRun.status)" "\(githubRun.conclusion)"
+      fi
       exit 0
     fi
     \(fakeGitHubArtifactBlock)
