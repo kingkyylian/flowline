@@ -31,10 +31,11 @@ jobs:
       - name: Determine release metadata
         id: release-metadata
         shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
 
-          RELEASE_TAG="${{ inputs.tag }}"
           if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+(\.[0-9]+){0,2}$ ]]; then
             echo "Release tag is invalid: $RELEASE_TAG" >&2
             exit 2

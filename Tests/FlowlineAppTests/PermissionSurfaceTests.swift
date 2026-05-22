@@ -68,6 +68,16 @@ import Testing
   #expect(!workflow.contains("--require-ci --require-artifact"))
 }
 
+@Test func releaseCandidateWorkflowDoesNotInterpolateDispatchTagInsideShell() throws {
+  let workflow = try String(
+    contentsOfFile: ".github/workflows/release-candidate.yml",
+    encoding: .utf8
+  )
+
+  #expect(workflow.contains("RELEASE_TAG: ${{ inputs.tag }}"))
+  #expect(!workflow.contains("RELEASE_TAG=\"${{ inputs.tag }}\""))
+}
+
 @Test func releaseCandidateWorkflowImportsDeveloperIDPrivateKeyWithScopedToolAccess() throws {
   let workflow = try String(
     contentsOfFile: ".github/workflows/release-candidate.yml",
