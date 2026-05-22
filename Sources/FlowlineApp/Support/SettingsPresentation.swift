@@ -157,7 +157,7 @@ enum SettingsPresentation {
         title: SettingsModuleLayer.left.title,
         items: [
           SettingsModuleLayerItem(module: .context, title: "Workspace", detail: "Left only"),
-          SettingsModuleLayerItem(module: .shelf, title: "Hold", detail: "Left first")
+          SettingsModuleLayerItem(module: .shelf, title: "Hold", detail: "Left only")
         ]
       ),
       SettingsModuleLayerSection(

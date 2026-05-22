@@ -71,7 +71,7 @@ import Testing
     [.music, .calendar]
   ])
   #expect(sections.map { $0.items.map(\.detail) } == [
-    ["Left only", "Left first"],
+    ["Left only", "Left only"],
     ["Right only", "Right first"]
   ])
 }
