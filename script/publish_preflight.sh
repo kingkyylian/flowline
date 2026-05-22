@@ -201,6 +201,7 @@ release_manifest_github_repository=""
 release_manifest_github_run_id=""
 release_manifest_github_workflow=""
 release_manifest_github_artifact_name=""
+release_manifest_notarized=""
 require_ci=false
 require_artifact=false
 while [[ $# -gt 0 ]]; do
@@ -293,6 +294,7 @@ if [[ -n "$release_tag" ]]; then
     || fail "release manifest size_bytes does not match archive: expected $actual_size_bytes, found $manifest_size_bytes"
 
   release_manifest_git_commit="$(require_manifest_value git_commit "$release_manifest")"
+  release_manifest_notarized="$(require_manifest_value notarized "$release_manifest")"
   release_manifest_github_repository="$(manifest_value github_repository "$release_manifest" || true)"
   release_manifest_github_run_id="$(manifest_value github_run_id "$release_manifest" || true)"
   release_manifest_github_workflow="$(manifest_value github_workflow "$release_manifest" || true)"
@@ -356,6 +358,10 @@ if [[ "$require_ci" == true ]]; then
     expected_github_workflow="Release Candidate"
     if [[ "$release_manifest_github_workflow" != "$expected_github_workflow" ]]; then
       fail "release manifest GitHub workflow does not match release candidate workflow: expected $expected_github_workflow, found ${release_manifest_github_workflow:-unknown}"
+    fi
+
+    if [[ "$release_manifest_notarized" != "true" ]]; then
+      fail "release manifest is not notarized: ${release_manifest_notarized:-unknown}"
     fi
 
     download_dir="$(mktemp -d)"

@@ -1034,6 +1034,7 @@ import Testing
     gitCommit: fixture.head,
     githubRepository: "kingkyylian/flowline",
     githubRunID: runID,
+    notarized: "true",
     githubArtifactName: artifactName
   )
 
@@ -1072,6 +1073,7 @@ import Testing
     githubRepository: "kingkyylian/flowline",
     githubRunID: runID,
     githubWorkflow: "CI",
+    notarized: "true",
     githubArtifactName: artifactName
   )
 
@@ -1083,6 +1085,44 @@ import Testing
 
   #expect(result.status == 2)
   #expect(result.output.contains("release manifest GitHub workflow does not match release candidate workflow: expected Release Candidate, found CI"))
+}
+
+@Test func publishPreflightRejectsCIManifestWhenArtifactIsNotNotarized() throws {
+  let runID = "1234567890"
+  let artifactName = "flowline-release-v1.2.3"
+  let fixture = try releasePreflightFixture(
+    githubRun: .init(
+      id: runID,
+      head: "",
+      status: "completed",
+      conclusion: "success"
+    ),
+    githubArtifact: .init(
+      name: artifactName,
+      archiveName: "Flowline-1.2.3.zip",
+      contents: "archive\n"
+    )
+  )
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(
+    for: archive,
+    version: "1.2.3",
+    gitCommit: fixture.head,
+    githubRepository: "kingkyylian/flowline",
+    githubRunID: runID,
+    githubWorkflow: "Release Candidate",
+    githubArtifactName: artifactName
+  )
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path, "--require-ci", "--require-artifact"],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("release manifest is not notarized: false"))
 }
 
 @Test func publishPreflightRejectsCIManifestWhenDownloadedArtifactIsMissingArchive() throws {
@@ -1110,6 +1150,7 @@ import Testing
     githubRepository: "kingkyylian/flowline",
     githubRunID: runID,
     githubWorkflow: "Release Candidate",
+    notarized: "true",
     githubArtifactName: artifactName
   )
 
@@ -1148,6 +1189,7 @@ import Testing
     githubRepository: "kingkyylian/flowline",
     githubRunID: runID,
     githubWorkflow: "Release Candidate",
+    notarized: "true",
     githubArtifactName: artifactName
   )
 
@@ -1187,6 +1229,7 @@ import Testing
     githubRepository: "kingkyylian/flowline",
     githubRunID: runID,
     githubWorkflow: "Release Candidate",
+    notarized: "true",
     githubArtifactName: artifactName
   )
 
@@ -1225,6 +1268,7 @@ import Testing
     githubRepository: "kingkyylian/flowline",
     githubRunID: runID,
     githubWorkflow: "Release Candidate",
+    notarized: "true",
     githubArtifactName: artifactName
   )
 
@@ -1849,6 +1893,7 @@ private func writeReleaseManifest(
   githubRepository: String? = nil,
   githubRunID: String? = nil,
   githubWorkflow: String = "CI",
+  notarized: String = "false",
   githubArtifactName: String? = nil
 ) throws {
   let manifest = archive.deletingPathExtension().appendingPathExtension("manifest")
@@ -1889,7 +1934,7 @@ private func writeReleaseManifest(
   git_commit=\(gitCommit)
   sha256=\(resolvedSHA256)
   size_bytes=\(resolvedSizeBytes)
-  notarized=false
+  notarized=\(notarized)
   \(githubFields)
   """.write(to: manifest, atomically: true, encoding: .utf8)
 }
