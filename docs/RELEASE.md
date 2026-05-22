@@ -95,7 +95,7 @@ mismatched, or empty release archives. It also requires the manifest generated
 next to the archive, for example `dist/release/Flowline-0.1.0.manifest`, and
 verifies the manifest version, archive name, checksum, size, and git commit.
 For public releases, keep `--require-ci`; it verifies the manifest's GitHub
-Actions run succeeded for the same `HEAD`.
+Actions run attempt succeeded for the same `HEAD`.
 
 When the release archive was produced and uploaded by GitHub Actions, set
 `FLOWLINE_GITHUB_ARTIFACT_NAME` before packaging so the release manifest records

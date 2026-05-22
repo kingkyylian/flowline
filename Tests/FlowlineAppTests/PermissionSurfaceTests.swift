@@ -980,6 +980,38 @@ import Testing
   #expect(result.output.contains("Publish preflight passed for kingkyylian/flowline"))
 }
 
+@Test func publishPreflightRejectsCIManifestWhenWorkflowRunAttemptDoesNotMatch() throws {
+  let runID = "1234567890"
+  let fixture = try releasePreflightFixture(
+    githubRun: .init(
+      id: runID,
+      head: "",
+      status: "completed",
+      conclusion: "success",
+      attempt: "1"
+    )
+  )
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(
+    for: archive,
+    version: "1.2.3",
+    gitCommit: fixture.head,
+    githubRepository: "kingkyylian/flowline",
+    githubRunID: runID,
+    githubRunAttempt: "2"
+  )
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path, "--require-ci"],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("release manifest GitHub run attempt does not match workflow run: expected 1, found 2"))
+}
+
 @Test func publishPreflightRejectsCIManifestWhenArtifactIsRequiredButMissing() throws {
   let runID = "1234567890"
   let fixture = try releasePreflightFixture(
@@ -1892,6 +1924,7 @@ private struct FakeGitHubRun {
   let head: String
   let status: String
   let conclusion: String
+  let attempt: String
   let workflowName: String
 
   init(
@@ -1899,12 +1932,14 @@ private struct FakeGitHubRun {
     head: String,
     status: String,
     conclusion: String,
+    attempt: String = "1",
     workflowName: String = "CI"
   ) {
     self.id = id
     self.head = head
     self.status = status
     self.conclusion = conclusion
+    self.attempt = attempt
     self.workflowName = workflowName
   }
 }
@@ -2051,12 +2086,18 @@ private func releasePreflightFixture(
 
     if [[ "$1" == "gh" && "$2" == "run" && "$3" == "view" && "$4" == "\(githubRun.id)" ]]; then
       includes_workflow=false
+      includes_attempt=false
       for arg in "$@"; do
         if [[ "$arg" == *workflowName* ]]; then
           includes_workflow=true
         fi
+        if [[ "$arg" == *attempt* ]]; then
+          includes_attempt=true
+        fi
       done
-      if [[ "$includes_workflow" == true ]]; then
+      if [[ "$includes_workflow" == true && "$includes_attempt" == true ]]; then
+        printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "\(runHead)" "\(githubRun.status)" "\(githubRun.conclusion)" "\(githubRun.workflowName)" "\(githubRun.attempt)"
+      elif [[ "$includes_workflow" == true ]]; then
         printf '%s\\t%s\\t%s\\t%s\\n' "\(runHead)" "\(githubRun.status)" "\(githubRun.conclusion)" "\(githubRun.workflowName)"
       else
         printf '%s\\t%s\\t%s\\n' "\(runHead)" "\(githubRun.status)" "\(githubRun.conclusion)"
@@ -2096,6 +2137,7 @@ private func writeReleaseManifest(
   sizeBytes: Int? = nil,
   githubRepository: String? = nil,
   githubRunID: String? = nil,
+  githubRunAttempt: String = "1",
   githubWorkflow: String = "CI",
   notarized: String = "false",
   githubArtifactName: String? = nil
@@ -2120,7 +2162,7 @@ private func writeReleaseManifest(
     githubFields = """
     github_repository=\(githubRepository)
     github_run_id=\(githubRunID)
-    github_run_attempt=1
+    github_run_attempt=\(githubRunAttempt)
     github_workflow=\(githubWorkflow)
     github_server_url=https://github.com
     \(artifactFields)

@@ -41,15 +41,15 @@ github_run_metadata() {
   if command -v rtk >/dev/null 2>&1; then
     rtk gh run view "$run_id" \
       --repo "$repo" \
-      --json headSha,status,conclusion,workflowName \
-      --jq '.headSha + "\t" + .status + "\t" + (.conclusion // "") + "\t" + (.workflowName // "")'
+      --json headSha,status,conclusion,workflowName,attempt \
+      --jq '.headSha + "\t" + .status + "\t" + (.conclusion // "") + "\t" + (.workflowName // "") + "\t" + (.attempt | tostring)'
     return
   fi
 
   gh run view "$run_id" \
     --repo "$repo" \
-    --json headSha,status,conclusion,workflowName \
-    --jq '.headSha + "\t" + .status + "\t" + (.conclusion // "") + "\t" + (.workflowName // "")'
+    --json headSha,status,conclusion,workflowName,attempt \
+    --jq '.headSha + "\t" + .status + "\t" + (.conclusion // "") + "\t" + (.workflowName // "") + "\t" + (.attempt | tostring)'
 }
 
 github_run_download_artifact() {
@@ -199,6 +199,7 @@ release_manifest=""
 release_manifest_git_commit=""
 release_manifest_github_repository=""
 release_manifest_github_run_id=""
+release_manifest_github_run_attempt=""
 release_manifest_github_workflow=""
 release_manifest_github_artifact_name=""
 release_manifest_notarized=""
@@ -297,6 +298,7 @@ if [[ -n "$release_tag" ]]; then
   release_manifest_notarized="$(require_manifest_value notarized "$release_manifest")"
   release_manifest_github_repository="$(manifest_value github_repository "$release_manifest" || true)"
   release_manifest_github_run_id="$(manifest_value github_run_id "$release_manifest" || true)"
+  release_manifest_github_run_attempt="$(manifest_value github_run_attempt "$release_manifest" || true)"
   release_manifest_github_workflow="$(manifest_value github_workflow "$release_manifest" || true)"
   release_manifest_github_artifact_name="$(manifest_value github_artifact_name "$release_manifest" || true)"
 fi
@@ -335,7 +337,7 @@ if [[ "$require_ci" == true ]]; then
 
   run_metadata="$(github_run_metadata "$repo" "$release_manifest_github_run_id")" \
     || fail "unable to fetch GitHub Actions run: $release_manifest_github_run_id"
-  IFS=$'\t' read -r run_head run_status run_conclusion run_workflow <<< "$run_metadata"
+  IFS=$'\t' read -r run_head run_status run_conclusion run_workflow run_attempt <<< "$run_metadata"
 
   if [[ "$run_status" != "completed" || "$run_conclusion" != "success" ]]; then
     fail "GitHub Actions run did not succeed: $run_status $run_conclusion"
@@ -343,6 +345,14 @@ if [[ "$require_ci" == true ]]; then
 
   if [[ "$run_head" != "$local_head" ]]; then
     fail "GitHub Actions run head does not match HEAD: expected $local_head, found $run_head"
+  fi
+
+  if [[ -z "$release_manifest_github_run_attempt" || "$release_manifest_github_run_attempt" == "unknown" ]]; then
+    fail "release manifest does not identify a GitHub Actions run attempt"
+  fi
+
+  if [[ "$release_manifest_github_run_attempt" != "$run_attempt" ]]; then
+    fail "release manifest GitHub run attempt does not match workflow run: expected ${run_attempt:-unknown}, found $release_manifest_github_run_attempt"
   fi
 
   if [[ "$require_artifact" == true ]]; then
