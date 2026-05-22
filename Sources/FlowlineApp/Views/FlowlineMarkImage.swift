@@ -16,35 +16,44 @@ enum FlowlineMarkImage {
     path.lineCapStyle = .round
     path.lineJoinStyle = .round
     path.move(to: pointFromTop(
-      FlowlineMarkMetrics.armOuterXRatio,
-      FlowlineMarkMetrics.armTopYRatio,
+      FlowlineMarkMetrics.startXRatio,
+      FlowlineMarkMetrics.startYRatio,
       size: size
     ))
-    path.line(to: pointFromTop(
-      FlowlineMarkMetrics.leftJointXRatio,
-      FlowlineMarkMetrics.armJointYRatio,
-      size: size
-    ))
-    path.move(to: pointFromTop(
-      1 - FlowlineMarkMetrics.armOuterXRatio,
-      FlowlineMarkMetrics.armTopYRatio,
-      size: size
-    ))
-    path.line(to: pointFromTop(
-      FlowlineMarkMetrics.rightJointXRatio,
-      FlowlineMarkMetrics.armJointYRatio,
-      size: size
-    ))
-    path.move(to: pointFromTop(
-      0.50,
-      FlowlineMarkMetrics.stemStartYRatio,
-      size: size
-    ))
-    path.line(to: pointFromTop(
-      0.50,
-      FlowlineMarkMetrics.stemEndYRatio,
-      size: size
-    ))
+    path.curve(
+      to: pointFromTop(
+        FlowlineMarkMetrics.centerXRatio,
+        FlowlineMarkMetrics.centerYRatio,
+        size: size
+      ),
+      controlPoint1: pointFromTop(
+        FlowlineMarkMetrics.firstControlXRatio,
+        FlowlineMarkMetrics.firstControlYRatio,
+        size: size
+      ),
+      controlPoint2: pointFromTop(
+        FlowlineMarkMetrics.secondControlXRatio,
+        FlowlineMarkMetrics.secondControlYRatio,
+        size: size
+      )
+    )
+    path.curve(
+      to: pointFromTop(
+        FlowlineMarkMetrics.endXRatio,
+        FlowlineMarkMetrics.endYRatio,
+        size: size
+      ),
+      controlPoint1: pointFromTop(
+        FlowlineMarkMetrics.thirdControlXRatio,
+        FlowlineMarkMetrics.thirdControlYRatio,
+        size: size
+      ),
+      controlPoint2: pointFromTop(
+        FlowlineMarkMetrics.fourthControlXRatio,
+        FlowlineMarkMetrics.fourthControlYRatio,
+        size: size
+      )
+    )
     path.stroke()
 
     image.unlockFocus()

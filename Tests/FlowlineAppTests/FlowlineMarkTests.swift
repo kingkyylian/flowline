@@ -5,14 +5,29 @@ import Testing
 @Test func flowlineMarkUsesCompactMenuBarMetrics() {
   #expect(FlowlineMarkMetrics.menuBarSize == 18)
   #expect(FlowlineMarkMetrics.collapsedSize == 13)
-  #expect(FlowlineMarkMetrics.strokeWidth == 2.4)
-  #expect(FlowlineMarkMetrics.armOuterXRatio == 0.27)
-  #expect(FlowlineMarkMetrics.leftJointXRatio == 0.47)
-  #expect(FlowlineMarkMetrics.rightJointXRatio == 0.53)
-  #expect(FlowlineMarkMetrics.armTopYRatio == 0.28)
-  #expect(FlowlineMarkMetrics.armJointYRatio == 0.50)
-  #expect(FlowlineMarkMetrics.stemStartYRatio == 0.58)
-  #expect(FlowlineMarkMetrics.stemEndYRatio == 0.80)
+  #expect(FlowlineMarkMetrics.strokeWidth == 2.25)
+}
+
+@Test func flowlineMarkUsesSingleFlowRibbonInsteadOfBrokenY() throws {
+  let source = try String(
+    contentsOfFile: "Sources/FlowlineApp/Views/FlowlineMarkView.swift",
+    encoding: .utf8
+  )
+
+  #expect(source.contains("FlowlineMarkRibbonPath"))
+  #expect(source.contains("path.addCurve"))
+  #expect(!source.contains("FlowlineMarkBrokenYPath"))
+}
+
+@Test func appIconRendererUsesFlowRibbonArtwork() throws {
+  let source = try String(
+    contentsOfFile: "script/generate_app_icon.swift",
+    encoding: .utf8
+  )
+
+  #expect(source.contains("drawFlowRibbon"))
+  #expect(!source.contains("drawSegment(from: p(289, 319)"))
+  #expect(!source.contains("drawSegment(from: p(735, 319)"))
 }
 
 @MainActor

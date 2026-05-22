@@ -83,9 +83,9 @@ func drawIcon(scale: CGFloat) {
   NSRect(x: 0, y: 0, width: 1024 * scale, height: 1024 * scale).fill()
 
   let body = NSBezierPath(
-    roundedRect: rectFromTop(x: 112, y: 88, width: 800, height: 848),
-    xRadius: 184 * scale,
-    yRadius: 184 * scale
+    roundedRect: rectFromTop(x: 104, y: 84, width: 816, height: 856),
+    xRadius: 196 * scale,
+    yRadius: 196 * scale
   )
 
   NSGraphicsContext.saveGraphicsState()
@@ -95,50 +95,94 @@ func drawIcon(scale: CGFloat) {
   bodyShadow.shadowBlurRadius = 34 * scale
   bodyShadow.set()
   NSGradient(colors: [
-    color(0x303846),
-    color(0x111821),
-    color(0x0a0e14)
+    color(0x28333b),
+    color(0x10151b),
+    color(0x07090d)
   ])?.draw(in: body, angle: -52)
   NSGraphicsContext.restoreGraphicsState()
 
-  body.lineWidth = 10 * scale
-  color(0xffffff, alpha: 0.16).setStroke()
+  body.lineWidth = 9 * scale
+  color(0xffffff, alpha: 0.14).setStroke()
   body.stroke()
 
-  let glint = NSBezierPath()
-  glint.move(to: p(208, 340))
-  glint.curve(to: p(617, 175), controlPoint1: p(308, 218), controlPoint2: p(453, 160))
-  glint.curve(to: p(837, 274), controlPoint1: p(709, 184), controlPoint2: p(781, 219))
-  glint.lineWidth = 44 * scale
-  glint.lineCapStyle = .round
-  color(0xffffff, alpha: 0.08).setStroke()
-  glint.stroke()
+  let topRail = NSBezierPath(
+    roundedRect: rectFromTop(x: 186, y: 164, width: 652, height: 126),
+    xRadius: 63 * scale,
+    yRadius: 63 * scale
+  )
+  NSGradient(colors: [
+    color(0xffffff, alpha: 0.15),
+    color(0x5ee0d1, alpha: 0.06)
+  ])?.draw(in: topRail, angle: -90)
 
-  drawSegment(from: p(289, 319), to: p(444, 482), width: 84 * scale, color: color(0x5cc8b2, alpha: 0.20))
-  drawSegment(from: p(735, 319), to: p(580, 482), width: 84 * scale, color: color(0xd8ad67, alpha: 0.18))
+  let notch = NSBezierPath(
+    roundedRect: rectFromTop(x: 407, y: 192, width: 210, height: 82),
+    xRadius: 41 * scale,
+    yRadius: 41 * scale
+  )
+  color(0x05080c, alpha: 0.34).setFill()
+  notch.fill()
 
   NSGraphicsContext.saveGraphicsState()
-  let markShadow = NSShadow()
-  markShadow.shadowColor = color(0x000000, alpha: 0.38)
-  markShadow.shadowOffset = NSSize(width: 0, height: -18 * scale)
-  markShadow.shadowBlurRadius = 16 * scale
-  markShadow.set()
-
-  let markColor = color(0xebf5fb)
-  drawSegment(from: p(289, 319), to: p(444, 482), width: 76 * scale, color: markColor)
-  drawSegment(from: p(735, 319), to: p(580, 482), width: 76 * scale, color: markColor)
-  drawSegment(from: p(512, 560), to: p(512, 742), width: 76 * scale, color: markColor)
+  let ribbonShadow = NSShadow()
+  ribbonShadow.shadowColor = color(0x000000, alpha: 0.46)
+  ribbonShadow.shadowOffset = NSSize(width: 0, height: -20 * scale)
+  ribbonShadow.shadowBlurRadius = 20 * scale
+  ribbonShadow.set()
+  drawFlowRibbon(scale: scale, point: p)
   NSGraphicsContext.restoreGraphicsState()
 
-  drawCircle(center: p(444, 482), radius: 20 * scale, color: color(0xf6fbff, alpha: 0.72))
-  drawCircle(center: p(580, 482), radius: 20 * scale, color: color(0xf6fbff, alpha: 0.72))
-  drawCircle(center: p(512, 560), radius: 18 * scale, color: color(0xf6fbff, alpha: 0.58))
+  drawCircle(center: p(238, 598), radius: 22 * scale, color: color(0x8df2e5, alpha: 0.78))
+  drawCircle(center: p(512, 500), radius: 27 * scale, color: color(0xf6fbff, alpha: 0.86))
+  drawCircle(center: p(792, 410), radius: 22 * scale, color: color(0xf1d39b, alpha: 0.82))
 }
 
-func drawSegment(from start: NSPoint, to end: NSPoint, width: CGFloat, color: NSColor) {
+func drawFlowRibbon(scale: CGFloat, point p: (CGFloat, CGFloat) -> NSPoint) {
+  let glow = flowRibbonPath(point: p)
+  drawStroke(glow, width: 136 * scale, color: color(0x4fd9cc, alpha: 0.18))
+
+  let leftAura = flowRibbonLeftPath(point: p)
+  drawStroke(leftAura, width: 104 * scale, color: color(0x68e7d9, alpha: 0.26))
+
+  let rightAura = flowRibbonRightPath(point: p)
+  drawStroke(rightAura, width: 104 * scale, color: color(0xdcb56c, alpha: 0.22))
+
+  drawStroke(leftAura, width: 82 * scale, color: color(0xcdfaf3))
+  drawStroke(rightAura, width: 82 * scale, color: color(0xfff1d2))
+
+  let highlight = flowRibbonPath(point: p)
+  drawStroke(highlight, width: 28 * scale, color: color(0xffffff, alpha: 0.40))
+}
+
+func flowRibbonPath(point p: (CGFloat, CGFloat) -> NSPoint) -> NSBezierPath {
+  let path = flowRibbonLeftPath(point: p)
+  path.append(flowRibbonRightPath(point: p))
+  return path
+}
+
+func flowRibbonLeftPath(point p: (CGFloat, CGFloat) -> NSPoint) -> NSBezierPath {
   let path = NSBezierPath()
-  path.move(to: start)
-  path.line(to: end)
+  path.move(to: p(238, 598))
+  path.curve(
+    to: p(512, 500),
+    controlPoint1: p(318, 304),
+    controlPoint2: p(438, 292)
+  )
+  return path
+}
+
+func flowRibbonRightPath(point p: (CGFloat, CGFloat) -> NSPoint) -> NSBezierPath {
+  let path = NSBezierPath()
+  path.move(to: p(512, 500))
+  path.curve(
+    to: p(792, 410),
+    controlPoint1: p(592, 710),
+    controlPoint2: p(704, 682)
+  )
+  return path
+}
+
+func drawStroke(_ path: NSBezierPath, width: CGFloat, color: NSColor) {
   path.lineWidth = width
   path.lineCapStyle = .round
   path.lineJoinStyle = .round
