@@ -30,6 +30,16 @@ import Testing
   #expect(info.releasesURL.absoluteString == "https://github.com/kingkyylian/flowline/releases")
 }
 
+@Test func settingsAboutProjectRowsUseSystemLinksForExternalURLs() throws {
+  let source = try String(
+    contentsOfFile: "Sources/FlowlineApp/Views/Settings/SettingsView.swift",
+    encoding: .utf8
+  )
+
+  #expect(source.contains("Link(\"OPEN\", destination: url)"))
+  #expect(!source.contains("Button(\"OPEN\") {\n          open(url)\n        }"))
+}
+
 @Test func settingsModulePreviewKeepsFixedLimitsInTheCenter() {
   let items = SettingsPresentation.modulePreviewItems(for: .defaults)
 

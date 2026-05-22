@@ -169,8 +169,7 @@ struct SettingsView: View {
         AboutLinkRow(
           title: "GitHub",
           detail: "Source",
-          url: info.githubURL,
-          open: state.open
+          url: info.githubURL
         )
 
         SettingsDivider()
@@ -178,8 +177,7 @@ struct SettingsView: View {
         AboutLinkRow(
           title: "Releases",
           detail: "Downloads",
-          url: info.releasesURL,
-          open: state.open
+          url: info.releasesURL
         )
 
         SettingsDivider()
@@ -187,8 +185,7 @@ struct SettingsView: View {
         AboutLinkRow(
           title: "License",
           detail: info.licenseName,
-          url: info.licenseURL,
-          open: state.open
+          url: info.licenseURL
         )
       }
     }
@@ -413,7 +410,6 @@ private struct AboutLinkRow: View {
   let title: String
   let detail: String
   let url: URL
-  let open: (URL) -> Void
 
   var body: some View {
     SettingsRow(title: title) {
@@ -424,9 +420,7 @@ private struct AboutLinkRow: View {
           .lineLimit(1)
           .minimumScaleFactor(0.72)
 
-        Button("OPEN") {
-          open(url)
-        }
+        Link("OPEN", destination: url)
         .buttonStyle(OutlineButtonStyle())
         .help(url.absoluteString)
       }
