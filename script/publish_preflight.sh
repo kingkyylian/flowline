@@ -14,7 +14,7 @@ Optional:
   --archive PATH   Require a non-empty Flowline-X.Y.Z.zip archive and matching manifest.
   --require-ci     Require the manifest to point at a successful GitHub Actions run for HEAD.
   --require-artifact
-                   Download the manifest's GitHub Actions artifact and verify its archive hash.
+                   Download the manifest's GitHub Actions artifact and verify its archive and manifest.
 USAGE
 }
 
@@ -382,6 +382,19 @@ if [[ "$require_ci" == true ]]; then
     downloaded_sha256="$(archive_sha256 "$downloaded_archive")"
     [[ "$downloaded_sha256" == "$actual_sha256" ]] \
       || fail "downloaded GitHub Actions artifact sha256 does not match archive: expected $actual_sha256, found $downloaded_sha256"
+
+    downloaded_manifest_name="${release_archive_name%.zip}.manifest"
+    downloaded_manifests="$(find "$download_dir" -type f -name "$downloaded_manifest_name" -print | sort)"
+    downloaded_manifest_count="$(printf '%s\n' "$downloaded_manifests" | sed '/^$/d' | wc -l | tr -d ' ')"
+    if [[ "$downloaded_manifest_count" == "0" ]]; then
+      fail "downloaded GitHub Actions artifact does not contain release manifest: $downloaded_manifest_name"
+    fi
+    if [[ "$downloaded_manifest_count" != "1" ]]; then
+      fail "downloaded GitHub Actions artifact contains multiple release manifests named $downloaded_manifest_name"
+    fi
+    downloaded_manifest="$downloaded_manifests"
+    cmp -s "$release_manifest" "$downloaded_manifest" \
+      || fail "downloaded GitHub Actions artifact manifest does not match local manifest: $downloaded_manifest_name"
   fi
 fi
 

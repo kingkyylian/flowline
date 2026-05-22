@@ -104,7 +104,7 @@ packaging and add `--require-artifact`; preflight downloads that artifact and
 requires the manifest to come from the `Release Candidate` workflow with an
 artifact name matching `flowline-release-vX.Y.Z`, and requires the manifest to
 be marked `notarized=true` before checking the downloaded `Flowline-X.Y.Z.zip`
-hash against the local archive.
+hash and `Flowline-X.Y.Z.manifest` content against the local files.
 
 ## Release
 

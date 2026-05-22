@@ -1125,6 +1125,91 @@ import Testing
   #expect(result.output.contains("release manifest is not notarized: false"))
 }
 
+@Test func publishPreflightRejectsCIManifestWhenDownloadedArtifactIsMissingManifest() throws {
+  let runID = "1234567890"
+  let artifactName = "flowline-release-v1.2.3"
+  let fixture = try releasePreflightFixture(
+    githubRun: .init(
+      id: runID,
+      head: "",
+      status: "completed",
+      conclusion: "success"
+    ),
+    githubArtifact: .init(
+      name: artifactName,
+      archiveName: "Flowline-1.2.3.zip",
+      contents: "archive\n",
+      includeManifest: false
+    )
+  )
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(
+    for: archive,
+    version: "1.2.3",
+    gitCommit: fixture.head,
+    githubRepository: "kingkyylian/flowline",
+    githubRunID: runID,
+    githubWorkflow: "Release Candidate",
+    notarized: "true",
+    githubArtifactName: artifactName
+  )
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path, "--require-ci", "--require-artifact"],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("downloaded GitHub Actions artifact does not contain release manifest: Flowline-1.2.3.manifest"))
+}
+
+@Test func publishPreflightRejectsCIManifestWhenDownloadedArtifactManifestDoesNotMatch() throws {
+  let runID = "1234567890"
+  let artifactName = "flowline-release-v1.2.3"
+  let fixture = try releasePreflightFixture(
+    githubRun: .init(
+      id: runID,
+      head: "",
+      status: "completed",
+      conclusion: "success"
+    ),
+    githubArtifact: .init(
+      name: artifactName,
+      archiveName: "Flowline-1.2.3.zip",
+      contents: "archive\n",
+      manifestContents: """
+      flowline_release_manifest=1
+      archive_name=Flowline-1.2.3.zip
+      version=1.2.3
+      notarized=true
+      """
+    )
+  )
+  let archive = try temporaryDirectory().appendingPathComponent("Flowline-1.2.3.zip")
+  try "archive\n".write(to: archive, atomically: true, encoding: .utf8)
+  try writeReleaseManifest(
+    for: archive,
+    version: "1.2.3",
+    gitCommit: fixture.head,
+    githubRepository: "kingkyylian/flowline",
+    githubRunID: runID,
+    githubWorkflow: "Release Candidate",
+    notarized: "true",
+    githubArtifactName: artifactName
+  )
+
+  let result = try runPublishPreflight(
+    in: fixture.repository,
+    arguments: ["--tag", fixture.tag, "--archive", archive.path, "--require-ci", "--require-artifact"],
+    pathPrefix: fixture.fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("downloaded GitHub Actions artifact manifest does not match local manifest: Flowline-1.2.3.manifest"))
+}
+
 @Test func publishPreflightRejectsCIManifestWhenDownloadedArtifactIsMissingArchive() throws {
   let runID = "1234567890"
   let artifactName = "flowline-release-v1.2.3"
@@ -1767,17 +1852,23 @@ private struct FakeGitHubArtifact {
   let archiveName: String
   let contents: String?
   let duplicateContents: String?
+  let includeManifest: Bool
+  let manifestContents: String?
 
   init(
     name: String,
     archiveName: String,
     contents: String?,
-    duplicateContents: String? = nil
+    duplicateContents: String? = nil,
+    includeManifest: Bool = true,
+    manifestContents: String? = nil
   ) {
     self.name = name
     self.archiveName = archiveName
     self.contents = contents
     self.duplicateContents = duplicateContents
+    self.includeManifest = includeManifest
+    self.manifestContents = manifestContents
   }
 }
 
@@ -1810,10 +1901,50 @@ private func releasePreflightFixture(
       let writeArtifactBlock: String
       if let contents = githubArtifact.contents {
         writeArtifactBlock = """
-        printf '%s' "\(contents)" > "$download_dir/\(githubArtifact.archiveName)"
+        archive_path="$download_dir/\(githubArtifact.archiveName)"
+        printf '%s' "\(contents)" > "$archive_path"
         """
       } else {
         writeArtifactBlock = ""
+      }
+      let writeManifestBlock: String
+      if githubArtifact.includeManifest, githubArtifact.contents != nil {
+        let manifestName = githubArtifact.archiveName.replacingOccurrences(of: ".zip", with: ".manifest")
+        if let manifestContents = githubArtifact.manifestContents {
+          writeManifestBlock = """
+          cat > "$download_dir/\(manifestName)" <<'FLOWLINE_FAKE_MANIFEST'
+          \(manifestContents)
+          FLOWLINE_FAKE_MANIFEST
+          """
+        } else {
+          let artifactVersion = githubArtifact.archiveName
+            .replacingOccurrences(of: "Flowline-", with: "")
+            .replacingOccurrences(of: ".zip", with: "")
+          writeManifestBlock = """
+          sha256="$(shasum -a 256 "$archive_path")"
+          sha256="${sha256%%[[:space:]]*}"
+          size_bytes="$(stat -f%z "$archive_path" 2>/dev/null || stat -c%s "$archive_path")"
+          cat > "$download_dir/\(manifestName)" <<MANIFEST
+          flowline_release_manifest=1
+          archive_name=\(githubArtifact.archiveName)
+          version=\(artifactVersion)
+          build=1
+          bundle_id=dev.kyylian.flowline.tests
+          git_commit=\(runHead)
+          sha256=$sha256
+          size_bytes=$size_bytes
+          notarized=true
+          github_repository=kingkyylian/flowline
+          github_run_id=\(githubRun.id)
+          github_run_attempt=1
+          github_workflow=Release Candidate
+          github_server_url=https://github.com
+          github_artifact_name=\(githubArtifact.name)
+          MANIFEST
+          """
+        }
+      } else {
+        writeManifestBlock = ""
       }
       let writeDuplicateArtifactBlock: String
       if let duplicateContents = githubArtifact.duplicateContents {
@@ -1846,6 +1977,7 @@ private func releasePreflightFixture(
         test -n "$download_dir"
         mkdir -p "$download_dir"
         \(writeArtifactBlock)
+        \(writeManifestBlock)
         \(writeDuplicateArtifactBlock)
         exit 0
       fi
