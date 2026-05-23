@@ -64,7 +64,7 @@ import SwiftUI
 }
 
 @Test func holdScreenshotPreviewUsesWideCardProportions() {
-  let availableWidth = NotchHoldTrayLayout.actionRowWidth(for: .left)
+  let availableWidth = NotchHoldTrayLayout.actionRowWidth
     - (NotchHoldTrayLayout.trayHorizontalPadding * 2)
 
   #expect(availableWidth == 120)
@@ -133,30 +133,18 @@ import SwiftUI
   #expect(visualCenterY == 100)
 }
 
-@Test func holdActionRowUsesMusicWidthWhenHoldIsRightSideModule() {
-  #expect(NotchHoldTrayLayout.actionRowWidth(for: .right) == CGFloat(NotchMetrics.musicTimelineWidth))
-  #expect(
-    NotchHoldTrayLayout.actionRowLeadingOffset(for: .right)
-      + NotchHoldTrayLayout.contentHorizontalPadding
-      == NotchUtilityMusicLayout.leadingInset()
-  )
-}
-
 @Test func holdTrayAndActionRowShareStableHorizontalMetrics() {
   let leftWidth = CGFloat(NotchMetrics.contextColumnWidth) - (NotchHoldTrayLayout.contentHorizontalPadding * 2)
-  let rightWidth = CGFloat(NotchMetrics.musicTimelineWidth)
 
-  #expect(NotchHoldTrayLayout.actionRowWidth(for: .left) == leftWidth)
-  #expect(NotchHoldTrayLayout.actionRowWidth(for: .right) == rightWidth)
-  #expect(NotchHoldTrayLayout.actionRowLeadingOffset(for: .left) == 0)
-  #expect(NotchHoldTrayLayout.actionRowLeadingOffset(for: .right) > 0)
+  #expect(NotchHoldTrayLayout.actionRowWidth == leftWidth)
+  #expect(NotchHoldTrayLayout.actionRowLeadingOffset == 0)
 }
 
 @Test func holdActionRowFitsLeftSideModule() {
   let availableWidth = CGFloat(NotchMetrics.contextColumnWidth) - (NotchHoldTrayLayout.contentHorizontalPadding * 2)
 
-  #expect(NotchHoldTrayLayout.actionRowWidth(for: .left) == availableWidth)
-  #expect(NotchHoldTrayLayout.actionRowLeadingOffset(for: .left) == 0)
+  #expect(NotchHoldTrayLayout.actionRowWidth == availableWidth)
+  #expect(NotchHoldTrayLayout.actionRowLeadingOffset == 0)
   #expect((NotchHoldTrayLayout.actionButtonSize * 3) <= availableWidth)
 }
 

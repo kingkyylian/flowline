@@ -18,24 +18,7 @@ enum NotchUtilityMusicLayout {
 enum NotchHoldHeaderLayout {
   static let headerLift = NotchUtilityMusicLayout.headerLift
   static let headerShiftX: CGFloat = 0
-
-  static func headerShiftX(for placement: FlowlineModulePlacement) -> CGFloat {
-    switch placement {
-    case .left:
-      return headerShiftX
-    case .right:
-      return NotchUtilityMusicLayout.headerShiftX
-    }
-  }
-
-  static func leadingInset(for placement: FlowlineModulePlacement) -> CGFloat {
-    switch placement {
-    case .left:
-      return FlowlineDesign.Metrics.notchColumnPadding
-    case .right:
-      return NotchUtilityMusicLayout.leadingInset()
-    }
-  }
+  static let leadingInset = FlowlineDesign.Metrics.notchColumnPadding
 }
 
 enum NotchWorkspaceHeaderLayout {

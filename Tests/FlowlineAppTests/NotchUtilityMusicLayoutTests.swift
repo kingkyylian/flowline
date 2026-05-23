@@ -45,14 +45,9 @@ import FlowlineCore
   #expect(NotchWorkspaceHeaderLayout.headerShiftX == NotchHoldHeaderLayout.headerShiftX)
 }
 
-@Test func holdHeaderUsesMusicSafeInsetOnRightColumn() {
-  #expect(NotchHoldHeaderLayout.leadingInset(for: .right) == NotchUtilityMusicLayout.leadingInset())
-  #expect(NotchHoldHeaderLayout.headerShiftX(for: .right) == NotchUtilityMusicLayout.headerShiftX)
-}
-
 @Test func holdHeaderKeepsStandardInsetOnLeftColumn() {
-  #expect(NotchHoldHeaderLayout.leadingInset(for: .left) == FlowlineDesign.Metrics.notchColumnPadding)
-  #expect(NotchHoldHeaderLayout.headerShiftX(for: .left) == 0)
+  #expect(NotchHoldHeaderLayout.leadingInset == FlowlineDesign.Metrics.notchColumnPadding)
+  #expect(NotchHoldHeaderLayout.headerShiftX == 0)
 }
 
 @Test func calendarRightColumnMatchesMusicColumnRhythm() {

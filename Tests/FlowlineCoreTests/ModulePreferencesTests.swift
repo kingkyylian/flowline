@@ -22,11 +22,11 @@ import Testing
   #expect(FlowlineModuleSelection.rejectionReason(for: .calendar, in: modules) == .maximumEnabled)
 }
 
-@Test func musicModuleSupportsOnlyTheRightSide() throws {
+@Test func modulesAdvertiseSupportedSidePlacements() throws {
   #expect(FlowlineModuleSelection.supportedPlacements(for: .context) == [.left])
   #expect(FlowlineModuleSelection.supportedPlacements(for: .music) == [.right])
   #expect(FlowlineModuleSelection.supportedPlacements(for: .calendar) == [.right, .left])
-  #expect(FlowlineModuleSelection.supportedPlacements(for: .shelf) == [.left, .right])
+  #expect(FlowlineModuleSelection.supportedPlacements(for: .shelf) == [.left])
 }
 
 @Test func modulePlacementUsesOnlySideSlotsWithCalendarOnTheSide() throws {
@@ -41,11 +41,12 @@ import Testing
   #expect(FlowlineModuleSelection.placement(for: .calendar, in: modules) == .right)
 }
 
-@Test func modulePlacementKeepsHoldInOpenSideColumn() throws {
+@Test func modulePlacementKeepsHoldOnlyInTheLeftColumn() throws {
   let leftHold = FlowlineModulePreferences(context: false, music: true, calendar: false, shelf: true)
-  let rightHold = FlowlineModulePreferences(context: true, music: false, calendar: false, shelf: true)
+  let unavailableHold = FlowlineModulePreferences(context: true, music: false, calendar: false, shelf: true)
 
   #expect(FlowlineModuleSelection.placement(for: .shelf, in: leftHold) == .left)
-  #expect(FlowlineModuleSelection.placement(for: .shelf, in: rightHold) == .right)
-  #expect(FlowlineModuleSelection.placement(for: .context, in: rightHold) == .left)
+  #expect(FlowlineModuleSelection.placement(for: .shelf, in: unavailableHold) == nil)
+  #expect(FlowlineModuleSelection.placement(for: .context, in: unavailableHold) == .left)
+  #expect(!FlowlineModuleSelection.isValid(unavailableHold))
 }

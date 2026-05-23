@@ -1,4 +1,3 @@
-import FlowlineCore
 import SwiftUI
 
 enum NotchHoldTrayLayout {
@@ -71,23 +70,8 @@ enum NotchHoldTrayLayout {
   static let actionButtonContentSpacing: CGFloat = 1
   static let actionRowOffsetY: CGFloat = 8
 
-  static func actionRowWidth(for placement: FlowlineModulePlacement) -> CGFloat {
-    switch placement {
-    case .left:
-      return CGFloat(NotchMetrics.contextColumnWidth) - (contentHorizontalPadding * 2)
-    case .right:
-      return CGFloat(NotchMetrics.musicTimelineWidth)
-    }
-  }
-
-  static func actionRowLeadingOffset(for placement: FlowlineModulePlacement) -> CGFloat {
-    switch placement {
-    case .left:
-      return 0
-    case .right:
-      return max(0, NotchUtilityMusicLayout.leadingInset() - contentHorizontalPadding)
-    }
-  }
+  static let actionRowWidth = CGFloat(NotchMetrics.contextColumnWidth) - (contentHorizontalPadding * 2)
+  static let actionRowLeadingOffset: CGFloat = 0
 
   static func trayTopOffset(hasVisibleItem: Bool) -> CGFloat {
     hasVisibleItem ? 0 : emptyTrayTopOffsetY

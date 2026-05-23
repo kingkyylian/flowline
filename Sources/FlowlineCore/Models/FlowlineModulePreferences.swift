@@ -109,7 +109,7 @@ public enum FlowlineModuleSelection {
     case .context:
       return [.left]
     case .shelf:
-      return [.left, .right]
+      return [.left]
     case .music:
       return [.right]
     case .calendar:

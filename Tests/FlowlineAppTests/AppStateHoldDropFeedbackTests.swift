@@ -66,7 +66,7 @@ import Testing
 }
 
 @MainActor
-@Test func appStateRejectsModuleToggleWhenSideSlotsAreFull() {
+@Test func appStateTurnsHoldOffForWorkspaceBeforeRejectingAThirdModule() {
   let defaults = UserDefaults.standard
   let keys = [
     "module.workspace.enabled",
@@ -101,12 +101,59 @@ import Testing
   state.setModule(.context, enabled: true)
   state.setModule(.calendar, enabled: true)
 
-  #expect(!state.workspaceModuleEnabled)
+  #expect(state.workspaceModuleEnabled)
+  #expect(!state.shelfModuleEnabled)
   #expect(!state.calendarModuleEnabled)
-  #expect(!defaults.bool(forKey: "module.workspace.enabled"))
+  #expect(defaults.bool(forKey: "module.workspace.enabled"))
+  #expect(!defaults.bool(forKey: "module.shelf.enabled"))
   #expect(!defaults.bool(forKey: "module.calendar.enabled"))
-  #expect(state.moduleStatusLabel(for: .context) == "max")
+  #expect(state.moduleStatusLabel(for: .context) == "left")
   #expect(state.moduleStatusLabel(for: .calendar) == "max")
+}
+
+@MainActor
+@Test func appStateTurnsHoldOffWhenWorkspaceUsesTheLeftSlot() {
+  let defaults = UserDefaults.standard
+  let keys = [
+    "module.workspace.enabled",
+    "module.music.enabled",
+    "module.calendar.enabled",
+    "module.shelf.enabled"
+  ]
+  let previousValues = Dictionary(uniqueKeysWithValues: keys.map { ($0, defaults.object(forKey: $0)) })
+  defer {
+    for key in keys {
+      if let value = previousValues[key] {
+        defaults.set(value, forKey: key)
+      } else {
+        defaults.removeObject(forKey: key)
+      }
+    }
+  }
+
+  defaults.set(true, forKey: "module.workspace.enabled")
+  defaults.set(false, forKey: "module.music.enabled")
+  defaults.set(false, forKey: "module.calendar.enabled")
+  defaults.set(true, forKey: "module.shelf.enabled")
+  let shelfService = ShelfService(
+    screenshotDirectoriesProvider: { [] },
+    screenshotStashDirectoryProvider: { FileManager.default.temporaryDirectory },
+    pasteboardProvider: { NSPasteboard.withUniqueName() },
+    screenshotTextRecognizer: nil
+  )
+  let state = AppState(shelfService: shelfService)
+  defer {
+    shelfService.stop()
+  }
+
+  state.start()
+
+  #expect(state.workspaceModuleEnabled)
+  #expect(!state.shelfModuleEnabled)
+  #expect(defaults.bool(forKey: "module.workspace.enabled"))
+  #expect(!defaults.bool(forKey: "module.shelf.enabled"))
+  #expect(state.moduleStatusLabel(for: .context) == "left")
+  #expect(state.moduleStatusLabel(for: .shelf) == "slot")
 }
 
 @MainActor

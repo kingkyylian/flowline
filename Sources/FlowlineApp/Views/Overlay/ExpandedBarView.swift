@@ -113,7 +113,6 @@ private struct NotchCockpitView: View {
       )
     case .shelf:
       NotchHoldColumn(
-        placement: .left,
         isEnabled: true,
         items: state.snapshot.shelfItems,
         copy: state.copyShelfItem,
@@ -147,18 +146,7 @@ private struct NotchCockpitView: View {
         next: state.musicNextTrack
       )
     case .shelf:
-      NotchHoldColumn(
-        placement: .right,
-        isEnabled: true,
-        items: state.snapshot.shelfItems,
-        copy: state.copyShelfItem,
-        copyOCR: state.copyShelfOCRText,
-        cycle: state.cycleShelfItems,
-        remove: state.removeShelfItem,
-        export: state.exportShelfItem,
-        isDropTargeted: state.isHoldDropTargeted,
-        landingTick: state.holdDropLandingTick
-      )
+      EmptyView()
     case .context:
       EmptyView()
     }
@@ -185,7 +173,6 @@ private struct NotchCockpitView: View {
 }
 
 private struct NotchHoldColumn: View {
-  let placement: FlowlineModulePlacement
   let isEnabled: Bool
   let items: [ShelfItem]
   let copy: (ShelfItem) -> Void
@@ -200,11 +187,10 @@ private struct NotchHoldColumn: View {
     VStack(alignment: .leading, spacing: NotchHoldTrayLayout.bodySpacing) {
       holdTray
         .frame(
-          width: NotchHoldTrayLayout.actionRowWidth(for: placement),
+          width: NotchHoldTrayLayout.actionRowWidth,
           height: NotchHoldTrayLayout.trayHeight,
           alignment: .leading
         )
-        .padding(.leading, NotchHoldTrayLayout.actionRowLeadingOffset(for: placement))
         .padding(.top, NotchHoldTrayLayout.trayTopOffset(hasVisibleItem: hasVisibleItem))
 
       if let item = items.first, isEnabled {
@@ -218,10 +204,10 @@ private struct NotchHoldColumn: View {
     .padding(.bottom, NotchHoldTrayLayout.contentBottomPadding)
     .overlay(alignment: .topLeading) {
       PanelHeader(title: "HOLD", systemImage: "tray.full", positionMode: .notch)
-        .padding(.leading, NotchHoldHeaderLayout.leadingInset(for: placement))
+        .padding(.leading, NotchHoldHeaderLayout.leadingInset)
         .padding(.top, 8)
         .offset(
-          x: NotchHoldHeaderLayout.headerShiftX(for: placement),
+          x: NotchHoldHeaderLayout.headerShiftX,
           y: -NotchHoldHeaderLayout.headerLift
         )
     }
@@ -243,10 +229,9 @@ private struct NotchHoldColumn: View {
       }
     }
     .frame(
-      width: NotchHoldTrayLayout.actionRowWidth(for: placement),
+      width: NotchHoldTrayLayout.actionRowWidth,
       height: NotchHoldTrayLayout.actionButtonSize
     )
-    .padding(.leading, NotchHoldTrayLayout.actionRowLeadingOffset(for: placement))
     .offset(y: NotchHoldTrayLayout.actionRowOffsetY)
   }
 

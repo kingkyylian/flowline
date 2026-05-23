@@ -199,13 +199,22 @@ final class AppState: ObservableObject {
   }
 
   func canEnableModule(_ module: FlowlineModule) -> Bool {
-    FlowlineModuleSelection.canEnable(module, in: modulePreferences)
+    guard !modulePreferences.isEnabled(module) else {
+      return true
+    }
+
+    return FlowlineModuleSelection.canEnable(module, in: modulePreferences)
+      || canEnableModuleByClosingConflicts(module)
   }
 
   func moduleStatusLabel(for module: FlowlineModule) -> String {
     let preferences = modulePreferences
     if let placement = FlowlineModuleSelection.placement(for: module, in: preferences) {
       return placement.rawValue
+    }
+
+    if !preferences.isEnabled(module), canEnableModule(module) {
+      return "off"
     }
 
     switch FlowlineModuleSelection.rejectionReason(for: module, in: preferences) {
@@ -425,6 +434,10 @@ final class AppState: ObservableObject {
       return true
     }
 
+    if closeModuleConflicts(for: module) {
+      return true
+    }
+
     setModule(module, enabled: false)
     return false
   }
@@ -438,9 +451,43 @@ final class AppState: ObservableObject {
       setModule(.calendar, enabled: false)
     }
 
+    if workspaceModuleEnabled && shelfModuleEnabled {
+      setModule(.shelf, enabled: false)
+    }
+
     if !FlowlineModuleSelection.isValid(modulePreferences) {
       setModule(.context, enabled: false)
     }
+  }
+
+  private func canEnableModuleByClosingConflicts(_ module: FlowlineModule) -> Bool {
+    adjustedPreferencesByClosingConflicts(for: module).map(FlowlineModuleSelection.isValid) ?? false
+  }
+
+  private func closeModuleConflicts(for module: FlowlineModule) -> Bool {
+    guard let adjusted = adjustedPreferencesByClosingConflicts(for: module),
+          FlowlineModuleSelection.isValid(adjusted) else {
+      return false
+    }
+
+    if module == .context, shelfModuleEnabled {
+      setModule(.shelf, enabled: false)
+    }
+
+    return true
+  }
+
+  private func adjustedPreferencesByClosingConflicts(
+    for module: FlowlineModule
+  ) -> FlowlineModulePreferences? {
+    guard module == .context, shelfModuleEnabled else {
+      return nil
+    }
+
+    var adjusted = modulePreferences
+    adjusted.set(.context, enabled: true)
+    adjusted.set(.shelf, enabled: false)
+    return adjusted
   }
 
   private func refreshSnapshot(refreshGit: Bool = true, shelfItems: [ShelfItem]? = nil) {

@@ -20,13 +20,13 @@ import Testing
   #expect(layout.right == nil)
 }
 
-@Test func notchSlotLayoutMovesHoldToRightWhenWorkspaceUsesLeftSlot() {
+@Test func notchSlotLayoutDoesNotMoveHoldToRightWhenWorkspaceUsesLeftSlot() {
   let layout = NotchModuleSlotLayout.layout(
     for: FlowlineModulePreferences(context: true, music: false, calendar: false, shelf: true)
   )
 
   #expect(layout.left == .context)
-  #expect(layout.right == .shelf)
+  #expect(layout.right == nil)
 }
 
 @Test func notchSlotLayoutPlacesCalendarOnRightWhenWorkspaceUsesLeftSlot() {

@@ -17,11 +17,11 @@ import Testing
   #expect(!OverlayHoldDropTarget.containsExpandedHoldDrop(NSPoint(x: NotchMetrics.expandedWidth - 40, y: 72), preferences: preferences))
 }
 
-@Test func expandedHoldDropTargetMovesToRightWhenHoldUsesRightSlot() {
+@Test func expandedHoldDropTargetRejectsRightSideWhenWorkspaceUsesLeftSlot() {
   let preferences = FlowlineModulePreferences(context: true, music: false, calendar: false, shelf: true)
 
   #expect(!OverlayHoldDropTarget.containsExpandedHoldDrop(NSPoint(x: 20, y: 72), preferences: preferences))
-  #expect(OverlayHoldDropTarget.containsExpandedHoldDrop(NSPoint(x: NotchMetrics.expandedWidth - 40, y: 72), preferences: preferences))
+  #expect(!OverlayHoldDropTarget.containsExpandedHoldDrop(NSPoint(x: NotchMetrics.expandedWidth - 40, y: 72), preferences: preferences))
 }
 
 @Test func expandedHoldDropTargetRejectsWhenHoldIsDisabled() {

@@ -8,17 +8,11 @@ enum OverlayHoldDropTarget {
   }
 
   private static func holdFrames(for layout: NotchModuleSlotLayout) -> [NSRect] {
-    var frames: [NSRect] = []
-
     if layout.left == .shelf {
-      frames.append(leftHoldFrame)
+      return [leftHoldFrame]
     }
 
-    if layout.right == .shelf {
-      frames.append(rightHoldFrame)
-    }
-
-    return frames
+    return []
   }
 
   private static var leftHoldFrame: NSRect {
@@ -30,12 +24,4 @@ enum OverlayHoldDropTarget {
     ).insetBy(dx: -8, dy: -8)
   }
 
-  private static var rightHoldFrame: NSRect {
-    NSRect(
-      x: NotchMetrics.expandedWidth - NotchMetrics.utilityColumnWidth - 40,
-      y: 0,
-      width: NotchMetrics.utilityColumnWidth + 40,
-      height: NotchMetrics.expandedHeight
-    ).insetBy(dx: -8, dy: -8)
-  }
 }
