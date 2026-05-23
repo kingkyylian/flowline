@@ -4,7 +4,7 @@
 
 - Root: `/Users/kyylian/flowline`
 - Git: branch `main`, synchronized with `origin/main`
-- Latest commit:
+- Baseline commit before this release-blocker checkpoint:
   - `ecffe6d Record live hold QA checkpoint`
 - Context: Hold left-only code, live Settings QA, live About link QA, checkpoint update, push, and CI are complete. Release-candidate execution is now narrowed to missing external Apple/GitHub credentials.
 
@@ -14,6 +14,12 @@
   - `ecffe6d Record live hold QA checkpoint`
 - Watched the new GitHub Actions CI run for `ecffe6d`:
   - Run `26334859976`
+  - Workflow `CI`
+  - Result `success`
+- Recorded and pushed the release-candidate blocker checkpoint:
+  - `ccd0b93 Record release candidate blocker checkpoint`
+- Watched the GitHub Actions CI run for `ccd0b93`:
+  - Run `26334984301`
   - Workflow `CI`
   - Result `success`
 - Checked release-candidate prerequisites instead of assuming them:
@@ -43,6 +49,8 @@
 
 - Command: `rtk gh run watch 26334859976 --repo kingkyylian/flowline --exit-status`
   - Result: passed; CI completed successfully in `2m50s`.
+- Command: `rtk gh run watch 26334984301 --repo kingkyylian/flowline --exit-status`
+  - Result: passed; CI completed successfully in `2m51s`.
 - Command: `rtk security find-identity -v -p codesigning`
   - Result: only `Apple Development: bwib3927@outlook.com (G953CU4G2L)` is available; no `Developer ID Application` identity is installed.
 - Command: `rtk gh api repos/kingkyylian/flowline/actions/secrets --jq '.secrets[].name'`
