@@ -59,6 +59,7 @@ import Testing
   #expect(workflow.contains("APPLE_ID"))
   #expect(workflow.contains("APPLE_TEAM_ID"))
   #expect(workflow.contains("APPLE_APP_SPECIFIC_PASSWORD"))
+  #expect(workflow.contains("script/configure_release_secrets.sh --dry-run"))
   #expect(workflow.contains("xcrun notarytool store-credentials"))
   #expect(workflow.contains("ARTIFACT_NAME=\"flowline-release-$RELEASE_TAG\""))
   #expect(workflow.contains("FLOWLINE_GITHUB_ARTIFACT_NAME=$ARTIFACT_NAME"))
@@ -85,6 +86,7 @@ import Testing
   )
 
   #expect(workflow.contains("security import \"$CERTIFICATE_PATH\""))
+  #expect(workflow.contains("test -s \"$CERTIFICATE_PATH\""))
   #expect(workflow.contains("-f pkcs12"))
   #expect(workflow.contains("-T /usr/bin/codesign"))
   #expect(workflow.contains("-T /usr/bin/security"))
@@ -117,6 +119,8 @@ import Testing
 
   #expect(publishPreflightRange.lowerBound < secretValidationRange.lowerBound)
   #expect(workflow.contains("script/publish_preflight.sh"))
+  #expect(workflow.contains("script/configure_release_secrets.sh --dry-run"))
+  #expect(!workflow.contains("Missing required release secret: $name"))
 }
 
 @Test func releaseCandidateWorkflowVerifiesSigningIdentityBeforeUsingNotaryCredentials() throws {
@@ -134,6 +138,427 @@ import Testing
   #expect(workflow.contains("script/package_release.sh --preflight"))
 }
 
+@Test func releaseSecretSetupScriptCoversReleaseCandidateSecrets() throws {
+  let script = try String(
+    contentsOfFile: "script/configure_release_secrets.sh",
+    encoding: .utf8
+  )
+  let releaseDocs = try String(contentsOfFile: "docs/RELEASE.md", encoding: .utf8)
+  let workflow = try String(
+    contentsOfFile: ".github/workflows/release-candidate.yml",
+    encoding: .utf8
+  )
+  let secretNames = [
+    "FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64",
+    "FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD",
+    "FLOWLINE_DEVELOPER_ID_IDENTITY",
+    "FLOWLINE_KEYCHAIN_PASSWORD",
+    "APPLE_ID",
+    "APPLE_TEAM_ID",
+    "APPLE_APP_SPECIFIC_PASSWORD"
+  ]
+
+  for name in secretNames {
+    #expect(script.contains(name))
+    #expect(releaseDocs.contains(name))
+    #expect(workflow.contains(name))
+  }
+  #expect(script.contains("gh secret set \"$name\" --repo \"$repo\""))
+  #expect(script.contains("gh api \"repos/$repo/actions/secrets\""))
+  #expect(script.contains("--paginate --jq '.secrets[].name'"))
+  #expect(script.contains("FLOWLINE_DEVELOPER_ID_CERTIFICATE_PATH"))
+  #expect(script.contains("--repo must match git remote origin"))
+  #expect(script.contains("--dry-run and --check are mutually exclusive"))
+  #expect(script.contains("FLOWLINE_DEVELOPER_ID_IDENTITY must include APPLE_TEAM_ID"))
+  #expect(releaseDocs.contains("script/configure_release_secrets.sh --repo kingkyylian/flowline"))
+  #expect(releaseDocs.contains("script/configure_release_secrets.sh --repo kingkyylian/flowline --check"))
+}
+
+@Test func releaseSecretSetupDryRunValidatesInputsWithoutPrintingSecretValues() throws {
+  let certificateData = Data("flowline test certificate".utf8)
+  let certificateBase64 = certificateData.base64EncodedString()
+  let p12Password = "p12-pw"
+  let identity = "Developer ID Application: Flowline Test (TEAM123456)"
+  let keychainPassword = "keychain-pw"
+  let appleID = "developer@example.invalid"
+  let appPassword = "app-pw"
+
+  let result = try runReleaseSecretSetup(
+    arguments: ["--repo", "kingkyylian/flowline", "--dry-run"],
+    environment: [
+      "FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64": certificateBase64,
+      "FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD": p12Password,
+      "FLOWLINE_DEVELOPER_ID_IDENTITY": identity,
+      "FLOWLINE_KEYCHAIN_PASSWORD": keychainPassword,
+      "APPLE_ID": appleID,
+      "APPLE_TEAM_ID": "TEAM123456",
+      "APPLE_APP_SPECIFIC_PASSWORD": appPassword
+    ]
+  )
+
+  #expect(result.status == 0)
+  #expect(result.output.contains("Would configure GitHub Actions secret: FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64"))
+  #expect(result.output.contains("Would configure GitHub Actions secret: APPLE_APP_SPECIFIC_PASSWORD"))
+  #expect(result.output.contains("Dry run passed for kingkyylian/flowline"))
+  #expect(!result.output.contains(certificateBase64))
+  #expect(!result.output.contains(p12Password))
+  #expect(!result.output.contains(identity))
+  #expect(!result.output.contains(keychainPassword))
+  #expect(!result.output.contains(appleID))
+  #expect(!result.output.contains(appPassword))
+}
+
+@Test func releaseSecretSetupDryRunInfersRepositoryFromOriginForWorkflowUse() throws {
+  let fakeBin = try temporaryDirectory()
+  let certificateBase64 = Data("flowline workflow certificate".utf8).base64EncodedString()
+
+  try """
+  #!/usr/bin/env bash
+  case "$1 $2" in
+    "remote get-url")
+      echo "https://github.com/kingkyylian/flowline.git"
+      ;;
+    *)
+      echo "unexpected git command: $*" >&2
+      exit 88
+      ;;
+  esac
+  """.write(to: fakeBin.appendingPathComponent("git"), atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeBin.appendingPathComponent("git").path)
+
+  let result = try runReleaseSecretSetup(
+    arguments: ["--dry-run"],
+    environment: [
+      "FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64": certificateBase64,
+      "FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD": "p12-pw",
+      "FLOWLINE_DEVELOPER_ID_IDENTITY": "Developer ID Application: Flowline Test (TEAM123456)",
+      "FLOWLINE_KEYCHAIN_PASSWORD": "keychain-pw",
+      "APPLE_ID": "developer@example.invalid",
+      "APPLE_TEAM_ID": "TEAM123456",
+      "APPLE_APP_SPECIFIC_PASSWORD": "app-pw"
+    ],
+    pathPrefix: fakeBin.path
+  )
+
+  #expect(result.status == 0)
+  #expect(result.output.contains("Dry run passed for kingkyylian/flowline"))
+  #expect(!result.output.contains(certificateBase64))
+}
+
+@Test func releaseSecretSetupRejectsDeveloperIDIdentityTeamMismatch() throws {
+  let certificateBase64 = Data("flowline test certificate".utf8).base64EncodedString()
+  let result = try runReleaseSecretSetup(
+    arguments: ["--repo", "kingkyylian/flowline", "--dry-run"],
+    environment: [
+      "FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64": certificateBase64,
+      "FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD": "p12-pw",
+      "FLOWLINE_DEVELOPER_ID_IDENTITY": "Developer ID Application: Flowline Test (OTHER12345)",
+      "FLOWLINE_KEYCHAIN_PASSWORD": "keychain-pw",
+      "APPLE_ID": "developer@example.invalid",
+      "APPLE_TEAM_ID": "TEAM123456",
+      "APPLE_APP_SPECIFIC_PASSWORD": "app-pw"
+    ]
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("FLOWLINE_DEVELOPER_ID_IDENTITY must include APPLE_TEAM_ID in parentheses: (TEAM123456)"))
+  #expect(!result.output.contains(certificateBase64))
+}
+
+@Test func releaseSecretSetupFailsWhenRequiredInputsAreMissing() throws {
+  let result = try runReleaseSecretSetup(
+    arguments: ["--repo", "kingkyylian/flowline", "--dry-run"]
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64 or FLOWLINE_DEVELOPER_ID_CERTIFICATE_PATH"))
+  #expect(result.output.contains("FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD"))
+  #expect(result.output.contains("FLOWLINE_DEVELOPER_ID_IDENTITY"))
+  #expect(result.output.contains("FLOWLINE_KEYCHAIN_PASSWORD"))
+  #expect(result.output.contains("APPLE_ID"))
+  #expect(result.output.contains("APPLE_TEAM_ID"))
+  #expect(result.output.contains("APPLE_APP_SPECIFIC_PASSWORD"))
+}
+
+@Test func releaseSecretSetupRejectsConflictingModes() throws {
+  let result = try runReleaseSecretSetup(
+    arguments: ["--repo", "kingkyylian/flowline", "--dry-run", "--check"]
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("--dry-run and --check are mutually exclusive"))
+}
+
+@Test func releaseSecretSetupSetsRepositorySecretsFromEnvWithoutPrintingValues() throws {
+  let fakeBin = try temporaryDirectory()
+  let events = fakeBin.appendingPathComponent("gh-events")
+  let certificatePath = fakeBin.appendingPathComponent("developer-id.p12")
+  let p12Password = "p12-pw"
+  let identity = "Developer ID Application: Flowline Test (TEAM123456)"
+  let keychainPassword = "keychain-pw"
+  let appleID = "developer@example.invalid"
+  let appPassword = "app-pw"
+
+  try Data("flowline p12 fixture".utf8).write(to: certificatePath)
+  let fakeGh = fakeBin.appendingPathComponent("gh")
+  try """
+  #!/usr/bin/env bash
+  set -euo pipefail
+
+  if [[ "$1" == "secret" && "$2" == "set" ]]; then
+    name="$3"
+    shift 3
+    repo=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --repo)
+          repo="$2"
+          shift 2
+          ;;
+        *)
+          shift
+          ;;
+      esac
+    done
+    body="$(cat)"
+    printf 'set %s repo=%s length=%s\\n' "$name" "$repo" "${#body}" >> "\(events.path)"
+    exit 0
+  fi
+
+  if [[ "$1" == "api" ]]; then
+    cat <<'NAMES'
+  FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64
+  FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD
+  FLOWLINE_DEVELOPER_ID_IDENTITY
+  FLOWLINE_KEYCHAIN_PASSWORD
+  APPLE_ID
+  APPLE_TEAM_ID
+  APPLE_APP_SPECIFIC_PASSWORD
+  NAMES
+    exit 0
+  fi
+
+  exit 88
+  """.write(to: fakeGh, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeGh.path)
+
+  let result = try runReleaseSecretSetup(
+    arguments: ["--repo", "kingkyylian/flowline"],
+    environment: [
+      "FLOWLINE_DEVELOPER_ID_CERTIFICATE_PATH": certificatePath.path,
+      "FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD": p12Password,
+      "FLOWLINE_DEVELOPER_ID_IDENTITY": identity,
+      "FLOWLINE_KEYCHAIN_PASSWORD": keychainPassword,
+      "APPLE_ID": appleID,
+      "APPLE_TEAM_ID": "TEAM123456",
+      "APPLE_APP_SPECIFIC_PASSWORD": appPassword
+    ],
+    pathPrefix: fakeBin.path
+  )
+  let eventLines = try String(contentsOf: events, encoding: .utf8)
+    .split(separator: "\n")
+    .map(String.init)
+
+  #expect(result.status == 0)
+  #expect(eventLines.count == 7)
+  #expect(eventLines.allSatisfy { $0.contains("repo=kingkyylian/flowline") })
+  #expect(eventLines.contains { $0.starts(with: "set FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64 ") })
+  #expect(eventLines.contains { $0.starts(with: "set APPLE_APP_SPECIFIC_PASSWORD ") })
+  #expect(result.output.contains("All required release secret names are configured for kingkyylian/flowline"))
+  #expect(result.output.contains("Release secrets configured for kingkyylian/flowline"))
+  #expect(!result.output.contains(p12Password))
+  #expect(!result.output.contains(identity))
+  #expect(!result.output.contains(keychainPassword))
+  #expect(!result.output.contains(appleID))
+  #expect(!result.output.contains(appPassword))
+}
+
+@Test func releaseSecretSetupRejectsRepoMismatchBeforeConfiguringSecrets() throws {
+  let fakeBin = try temporaryDirectory()
+  let events = fakeBin.appendingPathComponent("gh-events")
+
+  try """
+  #!/usr/bin/env bash
+  case "$1 $2" in
+    "remote get-url")
+      echo "https://github.com/kingkyylian/flowline.git"
+      ;;
+    *)
+      echo "unexpected git command: $*" >&2
+      exit 88
+      ;;
+  esac
+  """.write(to: fakeBin.appendingPathComponent("git"), atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeBin.appendingPathComponent("git").path)
+
+  try """
+  #!/usr/bin/env bash
+  printf 'gh %s\\n' "$*" >> "\(events.path)"
+  exit 88
+  """.write(to: fakeBin.appendingPathComponent("gh"), atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeBin.appendingPathComponent("gh").path)
+
+  let result = try runReleaseSecretSetup(
+    arguments: ["--repo", "example/other", "--dry-run"],
+    pathPrefix: fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("--repo must match git remote origin: expected kingkyylian/flowline, found example/other"))
+  #expect(!FileManager.default.fileExists(atPath: events.path))
+}
+
+@Test func releaseCandidateRunScriptGuardsWorkflowDispatch() throws {
+  let script = try String(
+    contentsOfFile: "script/run_release_candidate.sh",
+    encoding: .utf8
+  )
+  let releaseDocs = try String(contentsOfFile: "docs/RELEASE.md", encoding: .utf8)
+
+  #expect(script.contains("script/publish_preflight.sh"))
+  #expect(script.contains("script/configure_release_secrets.sh\" --repo \"$repo\" --check"))
+  #expect(script.contains("--repo must match git remote origin"))
+  #expect(script.contains("git branch --show-current"))
+  #expect(script.contains("git rev-parse -q --verify \"refs/tags/$RELEASE_TAG\""))
+  #expect(script.contains("git ls-remote --exit-code --tags origin \"refs/tags/$RELEASE_TAG\""))
+  #expect(script.contains("gh workflow run \"$WORKFLOW_FILE\""))
+  #expect(script.contains("--raw-field \"tag=$RELEASE_TAG\""))
+  #expect(releaseDocs.contains("script/run_release_candidate.sh --repo kingkyylian/flowline --tag v0.1.0"))
+}
+
+@Test func releaseCandidateRunScriptDispatchesOnlyAfterGuardsPass() throws {
+  let project = try temporaryDirectory()
+  let scriptDirectory = project.appendingPathComponent("script", isDirectory: true)
+  let fakeBin = try temporaryDirectory()
+  let events = fakeBin.appendingPathComponent("release-candidate-events")
+  let sourceScript = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    .appendingPathComponent("script/run_release_candidate.sh")
+  let runner = scriptDirectory.appendingPathComponent("run_release_candidate.sh")
+  let publishPreflight = scriptDirectory.appendingPathComponent("publish_preflight.sh")
+  let configureSecrets = scriptDirectory.appendingPathComponent("configure_release_secrets.sh")
+
+  try FileManager.default.createDirectory(at: scriptDirectory, withIntermediateDirectories: true)
+  try FileManager.default.copyItem(at: sourceScript, to: runner)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runner.path)
+
+  try """
+  #!/usr/bin/env bash
+  printf 'publish_preflight\\n' >> "\(events.path)"
+  """.write(to: publishPreflight, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: publishPreflight.path)
+
+  try """
+  #!/usr/bin/env bash
+  printf 'configure %s\\n' "$*" >> "\(events.path)"
+  test "$1" = "--repo"
+  test "$2" = "kingkyylian/flowline"
+  test "$3" = "--check"
+  """.write(to: configureSecrets, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: configureSecrets.path)
+
+  try """
+  #!/usr/bin/env bash
+  case "$1 $2" in
+    "remote get-url")
+      echo "https://github.com/kingkyylian/flowline.git"
+      ;;
+    "branch --show-current")
+      echo "main"
+      ;;
+    "rev-parse -q")
+      exit 1
+      ;;
+    "ls-remote --exit-code")
+      exit 2
+      ;;
+    *)
+      echo "unexpected git command: $*" >&2
+      exit 88
+      ;;
+  esac
+  """.write(to: fakeBin.appendingPathComponent("git"), atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeBin.appendingPathComponent("git").path)
+
+  try """
+  #!/usr/bin/env bash
+  printf 'gh %s\\n' "$*" >> "\(events.path)"
+  test "$1" = "workflow"
+  test "$2" = "run"
+  test "$3" = "release-candidate.yml"
+  test "$4" = "--repo"
+  test "$5" = "kingkyylian/flowline"
+  test "$6" = "--ref"
+  test "$7" = "main"
+  test "$8" = "--raw-field"
+  test "$9" = "tag=v1.2.3"
+  """.write(to: fakeBin.appendingPathComponent("gh"), atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeBin.appendingPathComponent("gh").path)
+
+  let result = try runReleaseCandidateRunner(
+    runner,
+    arguments: ["--tag", "v1.2.3"],
+    workingDirectory: project,
+    pathPrefix: fakeBin.path
+  )
+  let eventLines = try String(contentsOf: events, encoding: .utf8)
+    .split(separator: "\n")
+    .map(String.init)
+
+  #expect(result.status == 0)
+  #expect(eventLines == [
+    "publish_preflight",
+    "configure --repo kingkyylian/flowline --check",
+    "gh workflow run release-candidate.yml --repo kingkyylian/flowline --ref main --raw-field tag=v1.2.3"
+  ])
+  #expect(result.output.contains("Dispatched release-candidate.yml for v1.2.3 on kingkyylian/flowline"))
+}
+
+@Test func releaseCandidateRunScriptRejectsRepoMismatchBeforeDispatch() throws {
+  let project = try temporaryDirectory()
+  let scriptDirectory = project.appendingPathComponent("script", isDirectory: true)
+  let fakeBin = try temporaryDirectory()
+  let events = fakeBin.appendingPathComponent("release-candidate-events")
+  let sourceScript = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    .appendingPathComponent("script/run_release_candidate.sh")
+  let runner = scriptDirectory.appendingPathComponent("run_release_candidate.sh")
+
+  try FileManager.default.createDirectory(at: scriptDirectory, withIntermediateDirectories: true)
+  try FileManager.default.copyItem(at: sourceScript, to: runner)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runner.path)
+
+  try """
+  #!/usr/bin/env bash
+  case "$1 $2" in
+    "remote get-url")
+      echo "https://github.com/kingkyylian/flowline.git"
+      ;;
+    *)
+      echo "unexpected git command: $*" >&2
+      exit 88
+      ;;
+  esac
+  """.write(to: fakeBin.appendingPathComponent("git"), atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeBin.appendingPathComponent("git").path)
+
+  try """
+  #!/usr/bin/env bash
+  printf 'gh %s\\n' "$*" >> "\(events.path)"
+  exit 88
+  """.write(to: fakeBin.appendingPathComponent("gh"), atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeBin.appendingPathComponent("gh").path)
+
+  let result = try runReleaseCandidateRunner(
+    runner,
+    arguments: ["--repo", "example/other", "--tag", "v1.2.3"],
+    workingDirectory: project,
+    pathPrefix: fakeBin.path
+  )
+
+  #expect(result.status == 2)
+  #expect(result.output.contains("--repo must match git remote origin: expected kingkyylian/flowline, found example/other"))
+  #expect(!FileManager.default.fileExists(atPath: events.path))
+}
+
 @Test func releaseCandidateVerifyWorkflowRunsArtifactPreflightAfterCandidateCompletes() throws {
   let workflow = try String(
     contentsOfFile: ".github/workflows/release-candidate-verify.yml",
@@ -149,6 +574,7 @@ import Testing
   #expect(workflow.contains("github.event.workflow_run.head_branch == 'main'"))
   #expect(workflow.contains("ref: ${{ github.event.workflow_run.head_sha }}"))
   #expect(workflow.contains("CANDIDATE_RUN_ID: ${{ github.event.workflow_run.id }}"))
+  #expect(workflow.contains("--paginate"))
   #expect(workflow.contains("gh run download \"$CANDIDATE_RUN_ID\""))
   #expect(workflow.contains("script/publish_preflight.sh"))
   #expect(workflow.contains("--require-ci"))
@@ -378,6 +804,51 @@ import Testing
   let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
   #expect(process.terminationStatus == 2)
   #expect(output.contains("APPLE_TEAM_ID is invalid"))
+  #expect(!FileManager.default.fileExists(atPath: buildMarker.path))
+}
+
+@Test func notarizeReleaseRejectsDeveloperIDIdentityTeamMismatchBeforeBuild() throws {
+  let fakeBin = try temporaryDirectory()
+  let buildMarker = fakeBin.appendingPathComponent("swift-was-called")
+  let identity = "Developer ID Application: Flowline Test (TEAM123456)"
+
+  let fakeSecurity = fakeBin.appendingPathComponent("security")
+  try """
+  #!/usr/bin/env bash
+  echo '  1) ABCDEF123456 "\(identity)"'
+  """.write(to: fakeSecurity, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSecurity.path)
+
+  let fakeSwift = fakeBin.appendingPathComponent("swift")
+  try """
+  #!/usr/bin/env bash
+  touch "\(buildMarker.path)"
+  echo "swift build should not run before Apple Team ID matches signing identity" >&2
+  exit 77
+  """.write(to: fakeSwift, atomically: true, encoding: .utf8)
+  try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSwift.path)
+
+  let process = Process()
+  process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+  process.arguments = ["bash", "script/package_release.sh", "--notarize"]
+  process.environment = [
+    "PATH": "\(fakeBin.path):/usr/bin:/bin:/usr/sbin:/sbin",
+    "FLOWLINE_DEVELOPER_ID_IDENTITY": identity,
+    "APPLE_ID": "developer@example.invalid",
+    "APPLE_TEAM_ID": "OTHER12345",
+    "APPLE_APP_SPECIFIC_PASSWORD": "not-a-real-password"
+  ]
+
+  let outputPipe = Pipe()
+  process.standardOutput = outputPipe
+  process.standardError = outputPipe
+
+  try process.run()
+  process.waitUntilExit()
+
+  let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+  #expect(process.terminationStatus == 2)
+  #expect(output.contains("FLOWLINE_DEVELOPER_ID_IDENTITY must include APPLE_TEAM_ID in parentheses: (OTHER12345)"))
   #expect(!FileManager.default.fileExists(atPath: buildMarker.path))
 }
 
@@ -2237,6 +2708,61 @@ private func runSecretScan(in directory: URL, pathPrefix: String? = nil) throws 
     in: directory,
     pathPrefix: pathPrefix
   )
+}
+
+private func runReleaseSecretSetup(
+  arguments: [String],
+  environment overrides: [String: String] = [:],
+  pathPrefix: String? = nil
+) throws -> ProcessResult {
+  let process = Process()
+  process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+  process.arguments = ["bash", "script/configure_release_secrets.sh"] + arguments
+  process.currentDirectoryURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+  var path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  if let pathPrefix {
+    path = "\(pathPrefix):\(path)"
+  }
+  var environment = ["PATH": path]
+  for (key, value) in overrides {
+    environment[key] = value
+  }
+  process.environment = environment
+
+  let outputPipe = Pipe()
+  process.standardOutput = outputPipe
+  process.standardError = outputPipe
+
+  try process.run()
+  process.waitUntilExit()
+
+  let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+  return ProcessResult(status: process.terminationStatus, output: output)
+}
+
+private func runReleaseCandidateRunner(
+  _ runner: URL,
+  arguments: [String],
+  workingDirectory: URL,
+  pathPrefix: String
+) throws -> ProcessResult {
+  let process = Process()
+  process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+  process.arguments = ["bash", runner.path] + arguments
+  process.currentDirectoryURL = workingDirectory
+  process.environment = [
+    "PATH": "\(pathPrefix):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  ]
+
+  let outputPipe = Pipe()
+  process.standardOutput = outputPipe
+  process.standardError = outputPipe
+
+  try process.run()
+  process.waitUntilExit()
+
+  let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+  return ProcessResult(status: process.terminationStatus, output: output)
 }
 
 @discardableResult

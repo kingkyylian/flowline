@@ -20,7 +20,7 @@ MODE="${1:---archive}"
 usage() {
   cat <<USAGE
 Usage:
-  FLOWLINE_DEVELOPER_ID_IDENTITY="Developer ID Application: Name (TEAMID)" script/package_release.sh [--preflight|--archive|--notarize]
+  FLOWLINE_DEVELOPER_ID_IDENTITY="Developer ID Application: Name (TEAMID1234)" script/package_release.sh [--preflight|--archive|--notarize]
 
 Optional:
   FLOWLINE_BUNDLE_ID=dev.kyylian.flowline   # reverse-DNS identifier
@@ -70,6 +70,10 @@ apple_team_id_is_valid() {
   [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]
 }
 
+developer_id_identity_matches_apple_team() {
+  [[ "$SIGN_IDENTITY" == *"($APPLE_TEAM_ID)"* ]]
+}
+
 require_notary_credentials() {
   if ! notary_credentials_are_configured; then
     echo "error: notarization requires FLOWLINE_NOTARY_PROFILE or Apple ID credentials." >&2
@@ -79,6 +83,11 @@ require_notary_credentials() {
   if ! has_nonblank_value "${FLOWLINE_NOTARY_PROFILE:-}" && ! apple_team_id_is_valid; then
     echo "error: APPLE_TEAM_ID is invalid: $APPLE_TEAM_ID" >&2
     echo "       Use the 10-character Apple Developer Team ID." >&2
+    exit 2
+  fi
+
+  if ! has_nonblank_value "${FLOWLINE_NOTARY_PROFILE:-}" && ! developer_id_identity_matches_apple_team; then
+    echo "error: FLOWLINE_DEVELOPER_ID_IDENTITY must include APPLE_TEAM_ID in parentheses: ($APPLE_TEAM_ID)" >&2
     exit 2
   fi
 }

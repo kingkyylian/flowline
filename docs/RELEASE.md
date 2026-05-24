@@ -13,21 +13,21 @@
 Check local release prerequisites before building:
 
 ```bash
-FLOWLINE_DEVELOPER_ID_IDENTITY="Developer ID Application: Name (TEAMID)" \
+FLOWLINE_DEVELOPER_ID_IDENTITY="Developer ID Application: Name (TEAMID1234)" \
   script/package_release.sh --preflight
 ```
 
 Build a signed release archive:
 
 ```bash
-FLOWLINE_DEVELOPER_ID_IDENTITY="Developer ID Application: Name (TEAMID)" \
+FLOWLINE_DEVELOPER_ID_IDENTITY="Developer ID Application: Name (TEAMID1234)" \
   script/package_release.sh --archive
 ```
 
 Build, submit to Apple notarization, staple, and re-archive:
 
 ```bash
-FLOWLINE_DEVELOPER_ID_IDENTITY="Developer ID Application: Name (TEAMID)" \
+FLOWLINE_DEVELOPER_ID_IDENTITY="Developer ID Application: Name (TEAMID1234)" \
 FLOWLINE_NOTARY_PROFILE="flowline-notary" \
   script/package_release.sh --notarize
 ```
@@ -47,10 +47,48 @@ For a CI-built notarized candidate, configure these repository secrets:
 - `APPLE_TEAM_ID`
 - `APPLE_APP_SPECIFIC_PASSWORD`
 
-Then run the `Release Candidate` workflow from `main` with the intended tag,
-for example `v0.1.0`. The workflow imports the Developer ID certificate,
-stores a temporary notary profile, runs `script/package_release.sh --notarize`,
-and uploads the zip plus manifest as `flowline-release-vX.Y.Z`.
+Use the helper to validate and configure them without printing secret values:
+
+```bash
+FLOWLINE_DEVELOPER_ID_CERTIFICATE_PATH="/path/to/DeveloperIDApplication.p12" \
+FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD="p12-password" \
+FLOWLINE_DEVELOPER_ID_IDENTITY="Developer ID Application: Name (TEAMID1234)" \
+FLOWLINE_KEYCHAIN_PASSWORD="ci-keychain-pw" \
+APPLE_ID="apple-id@example.com" \
+APPLE_TEAM_ID="TEAMID1234" \
+APPLE_APP_SPECIFIC_PASSWORD="app-specific-password" \
+  script/configure_release_secrets.sh --repo kingkyylian/flowline
+```
+
+Before writing anything, validate local inputs with:
+
+```bash
+script/configure_release_secrets.sh --repo kingkyylian/flowline --dry-run
+```
+
+After setup, verify only the secret names with:
+
+```bash
+script/configure_release_secrets.sh --repo kingkyylian/flowline --check
+```
+
+Then dispatch the `Release Candidate` workflow from `main` with the intended
+tag, for example `v0.1.0`:
+
+```bash
+script/run_release_candidate.sh --repo kingkyylian/flowline --tag v0.1.0
+```
+
+This helper refuses to dispatch until publish preflight passes, the tag is still
+unused, and `script/configure_release_secrets.sh --check` confirms every
+required secret name exists. The workflow also runs the same helper in
+`--dry-run` mode before importing the certificate, so CI validates the
+Developer ID certificate base64, signing identity prefix, and Apple Team ID
+format before touching the signing keychain. It also requires the signing
+identity to include the same Team ID used for notarization. The workflow imports
+the Developer ID certificate, stores a temporary notary profile, runs
+`script/package_release.sh --notarize`, and uploads the zip plus manifest as
+`flowline-release-vX.Y.Z`.
 
 After that workflow completes, `Release Candidate Verify` checks out the exact
 candidate commit, downloads the uploaded artifact, and runs:

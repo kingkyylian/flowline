@@ -84,28 +84,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-        run: |
-          set -euo pipefail
-
-          missing=false
-          for name in \
-            FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64 \
-            FLOWLINE_DEVELOPER_ID_CERTIFICATE_PASSWORD \
-            FLOWLINE_DEVELOPER_ID_IDENTITY \
-            FLOWLINE_KEYCHAIN_PASSWORD \
-            APPLE_ID \
-            APPLE_TEAM_ID \
-            APPLE_APP_SPECIFIC_PASSWORD
-          do
-            if [[ -z "${!name:-}" ]]; then
-              echo "Missing required release secret: $name" >&2
-              missing=true
-            fi
-          done
-
-          if [[ "$missing" == true ]]; then
-            exit 2
-          fi
+        run: script/configure_release_secrets.sh --dry-run
 
       - name: Import Developer ID certificate
         shell: bash
@@ -120,6 +99,7 @@ jobs:
           KEYCHAIN_PATH="$RUNNER_TEMP/flowline-signing.keychain-db"
 
           printf '%s' "$FLOWLINE_DEVELOPER_ID_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          test -s "$CERTIFICATE_PATH"
           security create-keychain -p "$FLOWLINE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$FLOWLINE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"

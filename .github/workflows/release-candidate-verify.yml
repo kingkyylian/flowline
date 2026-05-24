@@ -36,6 +36,7 @@ jobs:
 
           artifact_names="$(
             gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID/artifacts" \
+              --paginate \
               --jq '.artifacts[] | select(.name | test("^flowline-release-v[0-9]+(\\.[0-9]+){0,2}$")) | .name'
           )"
           artifact_count="$(printf '%s\n' "$artifact_names" | sed '/^$/d' | wc -l | tr -d ' ')"
