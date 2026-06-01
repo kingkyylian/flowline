@@ -1,0 +1,33 @@
+name: Task
+description: Open a scoped refactor, chore, tooling, documentation, or release task.
+title: "[task] "
+labels: ["task", "triage"]
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why is this work needed?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Which files, modules, scripts, or app behaviors are affected?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      placeholder: "- [ ] ..."
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: Which commands or manual checks should pass?
+    validations:
+      required: true

@@ -1,0 +1,55 @@
+name: Bug
+description: Report incorrect Flowline behavior, a regression, or a privacy risk.
+title: "[bug] "
+labels: ["bug", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is broken? Include expected and actual behavior.
+      placeholder: "Expected: ...\nActual: ..."
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Commands or steps needed to reproduce the issue.
+      placeholder: "1. ...\n2. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Logs, screenshots, failing tests, or relevant file/line references. Remove private desktop context first.
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: macOS version, Mac model, Flowline commit/version, enabled modules, and permissions granted.
+      placeholder: "macOS 15, Apple Silicon, main@abc123, Calendar enabled, Accessibility denied"
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Critical
+        - High
+        - Medium
+        - Low
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: What must be true for the fix to be complete?
+      placeholder: "- [ ] ..."
+    validations:
+      required: true

@@ -1,0 +1,53 @@
+name: Feature
+description: Suggest a Flowline module, app behavior, permission flow, or developer workflow improvement.
+title: "[feature] "
+labels: ["feature", "triage"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What workflow problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected Behavior
+      description: Describe the user-facing behavior and relevant system boundaries.
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy and Permissions
+      description: Which local data or macOS permissions are involved? How should the feature stay local-first?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      placeholder: "- [ ] ..."
+    validations:
+      required: true
+  - type: textarea
+    id: test
+    attributes:
+      label: Verification
+      description: Swift tests, build/run verification, screenshot/manual QA, or release preflight expectations.
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk Area
+      options:
+        - Low
+        - UI
+        - Privacy/permissions
+        - Local filesystem
+        - Release packaging
+        - macOS integration
+    validations:
+      required: true
