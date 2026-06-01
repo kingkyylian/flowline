@@ -6,6 +6,9 @@ import Testing
   #expect(FlowlineMarkMetrics.menuBarSize == 18)
   #expect(FlowlineMarkMetrics.collapsedSize == 13)
   #expect(FlowlineMarkMetrics.strokeWidth == 2.25)
+  #expect(FlowlineMarkMetrics.startXRatio == 0.18)
+  #expect(FlowlineMarkMetrics.centerXRatio == 0.50)
+  #expect(FlowlineMarkMetrics.endXRatio == 0.82)
 }
 
 @Test func flowlineMarkUsesSingleFlowRibbonInsteadOfBrokenY() throws {
@@ -26,6 +29,19 @@ import Testing
   )
 
   #expect(source.contains("drawFlowRibbon"))
+  #expect(source.contains("drawBackgroundCurrents"))
+  #expect(source.contains("drawGradientStroke"))
+  #expect(source.contains("roundedRect: rectFromTop(x: 0, y: 0, width: 1024, height: 1024)"))
+  #expect(source.contains("path.move(to: p(282, 552))"))
+  #expect(source.contains("controlPoint1: p(362, 361)"))
+  #expect(source.contains("to: p(742, 444)"))
+  #expect(source.contains("color(0x061323)"))
+  #expect(source.contains("color(0x211b58)"))
+  #expect(!source.contains("color(0x0876d9)"))
+  #expect(!source.contains("rectFromTop(x: 104"))
+  #expect(!source.contains("topRail"))
+  #expect(!source.contains("let notch"))
+  #expect(!source.contains("drawCircle(center: p("))
   #expect(!source.contains("drawSegment(from: p(289, 319)"))
   #expect(!source.contains("drawSegment(from: p(735, 319)"))
 }

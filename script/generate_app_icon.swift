@@ -83,101 +83,90 @@ func drawIcon(scale: CGFloat) {
   NSRect(x: 0, y: 0, width: 1024 * scale, height: 1024 * scale).fill()
 
   let body = NSBezierPath(
-    roundedRect: rectFromTop(x: 104, y: 84, width: 816, height: 856),
-    xRadius: 196 * scale,
-    yRadius: 196 * scale
+    roundedRect: rectFromTop(x: 0, y: 0, width: 1024, height: 1024),
+    xRadius: 228 * scale,
+    yRadius: 228 * scale
   )
 
   NSGraphicsContext.saveGraphicsState()
-  let bodyShadow = NSShadow()
-  bodyShadow.shadowColor = color(0x000000, alpha: 0.34)
-  bodyShadow.shadowOffset = NSSize(width: 0, height: -32 * scale)
-  bodyShadow.shadowBlurRadius = 34 * scale
-  bodyShadow.set()
+  body.addClip()
   NSGradient(colors: [
-    color(0x28333b),
-    color(0x10151b),
-    color(0x07090d)
-  ])?.draw(in: body, angle: -52)
+    color(0x061323),
+    color(0x073b4b),
+    color(0x0b756d),
+    color(0x211b58)
+  ])?.draw(in: rectFromTop(x: 0, y: 0, width: 1024, height: 1024), angle: -38)
+  drawBackgroundCurrents(scale: scale, point: p)
   NSGraphicsContext.restoreGraphicsState()
 
-  body.lineWidth = 9 * scale
-  color(0xffffff, alpha: 0.14).setStroke()
+  body.lineWidth = 5 * scale
+  color(0xbffff4, alpha: 0.10).setStroke()
   body.stroke()
 
-  let topRail = NSBezierPath(
-    roundedRect: rectFromTop(x: 186, y: 164, width: 652, height: 126),
-    xRadius: 63 * scale,
-    yRadius: 63 * scale
-  )
-  NSGradient(colors: [
-    color(0xffffff, alpha: 0.15),
-    color(0x5ee0d1, alpha: 0.06)
-  ])?.draw(in: topRail, angle: -90)
-
-  let notch = NSBezierPath(
-    roundedRect: rectFromTop(x: 407, y: 192, width: 210, height: 82),
-    xRadius: 41 * scale,
-    yRadius: 41 * scale
-  )
-  color(0x05080c, alpha: 0.34).setFill()
-  notch.fill()
-
-  NSGraphicsContext.saveGraphicsState()
-  let ribbonShadow = NSShadow()
-  ribbonShadow.shadowColor = color(0x000000, alpha: 0.46)
-  ribbonShadow.shadowOffset = NSSize(width: 0, height: -20 * scale)
-  ribbonShadow.shadowBlurRadius = 20 * scale
-  ribbonShadow.set()
   drawFlowRibbon(scale: scale, point: p)
-  NSGraphicsContext.restoreGraphicsState()
+}
 
-  drawCircle(center: p(238, 598), radius: 22 * scale, color: color(0x8df2e5, alpha: 0.78))
-  drawCircle(center: p(512, 500), radius: 27 * scale, color: color(0xf6fbff, alpha: 0.86))
-  drawCircle(center: p(792, 410), radius: 22 * scale, color: color(0xf1d39b, alpha: 0.82))
+func drawBackgroundCurrents(scale: CGFloat, point p: (CGFloat, CGFloat) -> NSPoint) {
+  let lowerCurrent = NSBezierPath()
+  lowerCurrent.move(to: p(44, 760))
+  lowerCurrent.curve(
+    to: p(980, 342),
+    controlPoint1: p(244, 652),
+    controlPoint2: p(404, 366)
+  )
+  drawStroke(lowerCurrent, width: 212 * scale, color: color(0x020912, alpha: 0.30))
+
+  let upperCurrent = NSBezierPath()
+  upperCurrent.move(to: p(0, 324))
+  upperCurrent.curve(
+    to: p(1024, 704),
+    controlPoint1: p(250, 210),
+    controlPoint2: p(626, 360)
+  )
+  drawStroke(upperCurrent, width: 154 * scale, color: color(0x6fffe9, alpha: 0.10))
+
+  let warmCurrent = NSBezierPath()
+  warmCurrent.move(to: p(590, 80))
+  warmCurrent.curve(
+    to: p(1110, 502),
+    controlPoint1: p(682, 238),
+    controlPoint2: p(820, 360)
+  )
+  drawStroke(warmCurrent, width: 146 * scale, color: color(0xffbc6b, alpha: 0.10))
 }
 
 func drawFlowRibbon(scale: CGFloat, point p: (CGFloat, CGFloat) -> NSPoint) {
-  let glow = flowRibbonPath(point: p)
-  drawStroke(glow, width: 136 * scale, color: color(0x4fd9cc, alpha: 0.18))
-
-  let leftAura = flowRibbonLeftPath(point: p)
-  drawStroke(leftAura, width: 104 * scale, color: color(0x68e7d9, alpha: 0.26))
-
-  let rightAura = flowRibbonRightPath(point: p)
-  drawStroke(rightAura, width: 104 * scale, color: color(0xdcb56c, alpha: 0.22))
-
-  drawStroke(leftAura, width: 82 * scale, color: color(0xcdfaf3))
-  drawStroke(rightAura, width: 82 * scale, color: color(0xfff1d2))
-
-  let highlight = flowRibbonPath(point: p)
-  drawStroke(highlight, width: 28 * scale, color: color(0xffffff, alpha: 0.40))
-}
-
-func flowRibbonPath(point p: (CGFloat, CGFloat) -> NSPoint) -> NSBezierPath {
-  let path = flowRibbonLeftPath(point: p)
-  path.append(flowRibbonRightPath(point: p))
-  return path
-}
-
-func flowRibbonLeftPath(point p: (CGFloat, CGFloat) -> NSPoint) -> NSBezierPath {
-  let path = NSBezierPath()
-  path.move(to: p(238, 598))
-  path.curve(
-    to: p(512, 500),
-    controlPoint1: p(318, 304),
-    controlPoint2: p(438, 292)
+  let body = flowRibbonContinuousPath(point: p)
+  drawStroke(body, width: 148 * scale, color: color(0x010812, alpha: 0.34))
+  drawStroke(body, width: 120 * scale, color: color(0x062c3f, alpha: 0.44))
+  drawStroke(body, width: 100 * scale, color: color(0x41ffe2, alpha: 0.16))
+  drawGradientStroke(
+    body,
+    width: 78 * scale,
+    colors: [
+      color(0x84ffe9),
+      color(0xf2fff7),
+      color(0xffc56e)
+    ],
+    locations: [0, 0.50, 1],
+    start: p(282, 552),
+    end: p(742, 444)
   )
-  return path
+  drawStroke(body, width: 18 * scale, color: color(0xffffff, alpha: 0.18))
 }
 
-func flowRibbonRightPath(point p: (CGFloat, CGFloat) -> NSPoint) -> NSBezierPath {
+func flowRibbonContinuousPath(point p: (CGFloat, CGFloat) -> NSPoint) -> NSBezierPath {
   let path = NSBezierPath()
-  path.move(to: p(512, 500))
+  path.move(to: p(282, 552))
   path.curve(
-    to: p(792, 410),
-    controlPoint1: p(592, 710),
-    controlPoint2: p(704, 682)
+    to: p(512, 488),
+    controlPoint1: p(362, 361),
+    controlPoint2: p(454, 372)
+  )
+  path.curve(
+    to: p(742, 444),
+    controlPoint1: p(570, 603),
+    controlPoint2: p(666, 591)
   )
   return path
 }
@@ -190,15 +179,39 @@ func drawStroke(_ path: NSBezierPath, width: CGFloat, color: NSColor) {
   path.stroke()
 }
 
-func drawCircle(center: NSPoint, radius: CGFloat, color: NSColor) {
-  let rect = NSRect(
-    x: center.x - radius,
-    y: center.y - radius,
-    width: radius * 2,
-    height: radius * 2
+func drawGradientStroke(
+  _ path: NSBezierPath,
+  width: CGFloat,
+  colors: [NSColor],
+  locations: [CGFloat],
+  start: NSPoint,
+  end: NSPoint
+) {
+  guard
+    let context = NSGraphicsContext.current?.cgContext,
+    let gradient = CGGradient(
+      colorsSpace: CGColorSpaceCreateDeviceRGB(),
+      colors: colors.map(\.cgColor) as CFArray,
+      locations: locations
+    )
+  else {
+    return
+  }
+
+  context.saveGState()
+  context.addPath(path.cgPath)
+  context.setLineWidth(width)
+  context.setLineCap(.round)
+  context.setLineJoin(.round)
+  context.replacePathWithStrokedPath()
+  context.clip()
+  context.drawLinearGradient(
+    gradient,
+    start: CGPoint(x: start.x, y: start.y),
+    end: CGPoint(x: end.x, y: end.y),
+    options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
   )
-  color.setFill()
-  NSBezierPath(ovalIn: rect).fill()
+  context.restoreGState()
 }
 
 func color(_ hex: Int, alpha: CGFloat = 1) -> NSColor {
