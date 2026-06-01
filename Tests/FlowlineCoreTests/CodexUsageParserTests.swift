@@ -82,12 +82,38 @@ import Testing
   #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_778_271_510))
 }
 
-@Test func ignoresNonDefaultCodexSessionRateLimitEvents() throws {
+@Test func parsesCodexVariantSessionRateLimitEvents() throws {
   let data = """
     {
       "payload": {
         "rate_limits": {
           "limit_id": "codex_bengalfox",
+          "primary": {
+            "used_percent": 0
+          },
+          "secondary": {
+            "used_percent": 72,
+            "resets_at": 1780175549
+          }
+        }
+      }
+    }
+    """.data(using: .utf8)!
+
+  let usage = try #require(try CodexUsageParser.parseSessionEventProvider(data))
+
+  #expect(usage.provider == .codex)
+  #expect(usage.primary?.percentLeft == 100)
+  #expect(usage.secondary?.percentLeft == 28)
+  #expect(usage.secondary?.resetsAt == Date(timeIntervalSince1970: 1_780_175_549))
+}
+
+@Test func ignoresNonCodexSessionRateLimitEvents() throws {
+  let data = """
+    {
+      "payload": {
+        "rate_limits": {
+          "limit_id": "other",
           "primary": {
             "used_percent": 0
           }

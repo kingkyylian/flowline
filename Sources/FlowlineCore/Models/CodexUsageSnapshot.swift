@@ -155,7 +155,7 @@ public enum CodexUsageParser {
 
   public static func parseSessionEventProvider(_ data: Data) throws -> AIProviderUsage? {
     let event = try JSONDecoder().decode(SessionEvent.self, from: data)
-    guard let rateLimits = event.payload.rateLimits, rateLimits.limitID == "codex" else {
+    guard let rateLimits = event.payload.rateLimits, isCodexLimitID(rateLimits.limitID) else {
       return nil
     }
 
@@ -180,6 +180,14 @@ public enum CodexUsageParser {
     }
 
     return min(100, max(0, Int((100.0 - usedPercent).rounded())))
+  }
+
+  private static func isCodexLimitID(_ limitID: String?) -> Bool {
+    guard let limitID else {
+      return false
+    }
+
+    return limitID == "codex" || limitID.hasPrefix("codex_")
   }
 
   private static func date(fromUnixTimestamp timestamp: Double?) -> Date? {
